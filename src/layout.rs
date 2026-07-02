@@ -13,28 +13,29 @@ use smithay::{
     wayland::seat::WaylandFocus,
 };
 
+// TODO: add multi-cell windows, probably
 pub struct Map {
     pub map: Vec<Vec<Option<Window>>>,
     pub first_available: Option<Coordinate>,
     pub rows: usize,
     pub columns: usize,
-    pub cell_height: usize,
-    pub cell_width: usize,
-    pub offset: Point<usize, Logical>,
+    pub cell_height: i32,
+    pub cell_width: i32,
+    pub offset: Point<i32, Logical>,
 }
 
 impl Map {
     pub fn new(
         rows: usize,
         columns: usize,
-        cell_height: usize,
-        cell_width: usize,
-        offset: Point<usize, Logical>,
+        cell_height: i32,
+        cell_width: i32,
+        offset: Point<i32, Logical>,
     ) -> Self {
         assert_ne!(rows, 0);
         assert_ne!(columns, 0);
-        assert_ne!(cell_height, 0);
-        assert_ne!(cell_width, 0);
+        assert!(cell_height > 0);
+        assert!(cell_width > 0);
 
         Self {
             map: vec![vec![None; columns]; rows],
@@ -62,6 +63,9 @@ impl Map {
 
         if x.is_none() {
             *x = Some(window);
+            if let Some(available) = self.first_available && *position == available {
+                self.recalculate_available();
+            } 
             true
         } else {
             false
@@ -73,24 +77,28 @@ impl Map {
     }
 
     pub fn recalculate_available(&mut self) {
-        if let Some(Coordinate { row, column }) = self.first_available {
+        if let Some(x@ Coordinate { row, mut column }) = self.first_available {
             let mut found = false;
+            dbg!(x);
             // first try, in front
-            'outer: for r in row..self.rows {
-                for c in column..self.columns {
+            'outer: for r in (row as usize)..self.rows {
+                for c in (column as usize)..self.columns {
                     if self.map[r][c].is_none() {
-                        self.first_available = Some(Coordinate { row: r, column: c });
+                        self.first_available = Some(Coordinate { row: r as i32, column: c as i32});
                         found = true;
                         break 'outer;
                     }
                 }
+                column = 0;
             }
+
+            dbg!(found);
 
             // try behind
             if !found {
-                'outer: for r in 0..row {
-                    for c in 0..column {
-                        if self.map[r][c].is_none() {
+                'outer: for r in 0..=row {
+                    for c in 0..=column {
+                        if self.map[r as usize][c as usize].is_none() {
                             self.first_available = Some(Coordinate { row: r, column: c });
                             found = true;
                             break 'outer;
@@ -107,23 +115,25 @@ impl Map {
             'outer: for r in 0..self.rows {
                 for c in 0..self.columns {
                     if self.map[r][c].is_none() {
-                        self.first_available = Some(Coordinate { row: r, column: c });
+                        self.first_available = Some(Coordinate { row: r as i32, column: c as i32});
                         break 'outer;
                     }
                 }
             }
         }
+
+        dbg!(self.first_available);
     }
 
     pub fn get_position(&self, Coordinate { row, column }: Coordinate) -> Point<i32, Logical> {
         Point::new(
-            (row * self.cell_width + self.offset.x) as i32,
-            (column * self.cell_height + self.offset.y) as i32,
+            column * self.cell_width + self.offset.x ,
+            row * self.cell_height + self.offset.y ,
         )
     }
 
     pub fn get_size(&self) -> Size<i32, Logical> {
-        Size::new(self.cell_width as i32, self.cell_width as i32)
+        Size::new(self.cell_width, self.cell_width)
     }
 }
 
@@ -131,13 +141,13 @@ impl Index<&Coordinate> for Map {
     type Output = Option<Window>;
 
     fn index(&self, Coordinate { row, column }: &Coordinate) -> &Self::Output {
-        &self.map[*row][*column]
+        &self.map[*row as usize][*column as usize]
     }
 }
 
 impl IndexMut<&Coordinate> for Map {
     fn index_mut(&mut self, Coordinate { row, column }: &Coordinate) -> &mut Self::Output {
-        &mut self.map[*row][*column]
+        &mut self.map[*row as usize][*column as usize]
     }
 }
 
@@ -156,8 +166,8 @@ impl Privileged {
 
     pub fn insert(&mut self, window: Window, space: &mut Space<Window>) -> Point<i32, Logical> {
         let mut size = self.area.size;
-
-        size.w /= self.privileged.len() as i32;
+        
+        size.w /= self.privileged.len() as i32 + 1;
 
         self.redo_widths(space, -size.w);
 
@@ -266,12 +276,12 @@ impl LayoutController {
     pub fn _new(
         rows: usize,
         columns: usize,
-        cell_height: usize,
-        cell_width: usize,
+        cell_height: i32,
+        cell_width: i32,
         area: Rectangle<i32, Logical>,
     ) -> Self {
         Self {
-            map: Map::new(rows, columns, cell_height, cell_width, Point::new(0, 100)),
+            map: Map::new(rows, columns, cell_height, cell_width, Point::new(0, area.size.h)),
             privileged: Privileged::new(area),
             space: Space::default(),
         }
@@ -350,19 +360,19 @@ pub enum InsertResult {
 pub struct LayoutSettings {
     pub rows: usize,
     pub columns: usize,
-    pub cell_height: usize,
-    pub cell_width: usize,
+    pub cell_height: i32,
+    pub cell_width: i32,
     pub area: Rectangle<i32, Logical>,
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, PartialOrd)]
 pub struct Coordinate {
-    pub row: usize,
-    pub column: usize,
+    pub row: i32,
+    pub column: i32,
 }
 
-impl From<(usize, usize)> for Coordinate {
-    fn from(value: (usize, usize)) -> Self {
+impl From<(i32, i32)> for Coordinate {
+    fn from(value: (i32, i32)) -> Self {
         Self {
             row: value.0,
             column: value.1,
@@ -370,8 +380,8 @@ impl From<(usize, usize)> for Coordinate {
     }
 }
 
-impl From<[usize; 2]> for Coordinate {
-    fn from(value: [usize; 2]) -> Self {
+impl From<[i32; 2]> for Coordinate {
+    fn from(value: [i32; 2]) -> Self {
         Self {
             row: value[0],
             column: value[1],
