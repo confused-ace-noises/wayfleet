@@ -5,12 +5,7 @@ use std::{
 
 use smithay::{
     desktop::{Space, Window},
-    reexports::{
-        reis::request::RequestError::TooManyTouches,
-        wayland_protocols::xdg::shell::client::xdg_toplevel,
-    },
     utils::{Logical, Point, Rectangle, Size},
-    wayland::seat::WaylandFocus,
 };
 
 // TODO: add multi-cell windows, probably
@@ -63,9 +58,11 @@ impl Map {
 
         if x.is_none() {
             *x = Some(window);
-            if let Some(available) = self.first_available && *position == available {
+            if let Some(available) = self.first_available
+                && *position == available
+            {
                 self.recalculate_available();
-            } 
+            }
             true
         } else {
             false
@@ -77,14 +74,17 @@ impl Map {
     }
 
     pub fn recalculate_available(&mut self) {
-        if let Some(x@ Coordinate { row, mut column }) = self.first_available {
+        if let Some(x @ Coordinate { row, mut column }) = self.first_available {
             let mut found = false;
             dbg!(x);
             // first try, in front
             'outer: for r in (row as usize)..self.rows {
                 for c in (column as usize)..self.columns {
                     if self.map[r][c].is_none() {
-                        self.first_available = Some(Coordinate { row: r as i32, column: c as i32});
+                        self.first_available = Some(Coordinate {
+                            row: r as i32,
+                            column: c as i32,
+                        });
                         found = true;
                         break 'outer;
                     }
@@ -115,7 +115,10 @@ impl Map {
             'outer: for r in 0..self.rows {
                 for c in 0..self.columns {
                     if self.map[r][c].is_none() {
-                        self.first_available = Some(Coordinate { row: r as i32, column: c as i32});
+                        self.first_available = Some(Coordinate {
+                            row: r as i32,
+                            column: c as i32,
+                        });
                         break 'outer;
                     }
                 }
@@ -125,15 +128,76 @@ impl Map {
         dbg!(self.first_available);
     }
 
+    pub fn find_window(&self, point: Point<i32, Logical>) -> Option<&Window> {
+        for row in 0..self.rows {
+            let row_rect = Rectangle::new(
+                self.get_position(Coordinate {
+                    row: row as i32,
+                    column: 0,
+                }),
+                Size::new(self.total_width(), self.cell_height),
+            );
+
+
+            if row_rect.contains(point) {
+                let row = &self.map[row];
+                // found row, now find column
+                for col in row.iter() {
+                    if let Some(window) = col.as_ref() && window.geometry().contains(point) {
+                        return Some(window);
+                    }
+                }
+
+                // didn't find it here, the pointer is in some random gap
+                break; 
+            }
+        }
+
+        None
+    }
+
+    pub fn find_window_pos(&self, point: Point<i32, Logical>, space: &Space<Window>) -> Option<(&Window, Point<i32, Logical>)> {
+        for row in 0..self.rows {
+            let row_rect = Rectangle::new(
+                self.get_position(Coordinate {
+                    row: row as i32,
+                    column: 0,
+                }),
+                Size::new(self.total_width(), self.cell_height),
+            );
+
+
+            if row_rect.contains(point) {
+                let row = &self.map[row];
+                // found row, now find column
+                for col in row.iter() {
+                    if let Some(window) = col && window.geometry().contains(point) {
+                        let pos = space.element_location(window).unwrap();
+                        return Some((window, pos));
+                    }
+                }
+
+                // didn't find it here, the pointer is in some random gap
+                break; 
+            }
+        }
+
+        None
+    }
+
     pub fn get_position(&self, Coordinate { row, column }: Coordinate) -> Point<i32, Logical> {
         Point::new(
-            column * self.cell_width + self.offset.x ,
-            row * self.cell_height + self.offset.y ,
+            column * self.cell_width + self.offset.x,
+            row * self.cell_height + self.offset.y,
         )
     }
 
     pub fn get_size(&self) -> Size<i32, Logical> {
         Size::new(self.cell_width, self.cell_width)
+    }
+
+    pub fn total_width(&self) -> i32 {
+        self.cell_width * self.columns as i32
     }
 }
 
@@ -166,38 +230,43 @@ impl Privileged {
 
     pub fn insert(&mut self, window: Window, space: &mut Space<Window>) -> Point<i32, Logical> {
         let mut size = self.area.size;
-        
+
         size.w /= self.privileged.len() as i32 + 1;
 
         self.redo_widths(space, -size.w);
-
         self.privileged.push(vec![window.clone()]);
 
-        Point::new(self.area.loc.x + self.area.size.w - size.w, self.area.loc.y)
+        LayoutController::resize(&window, ResizeType::Both(size));
+
+        Point::new(self.area.size.w - size.w + self.area.loc.x, self.area.loc.y)
     }
 
-    pub fn redo_widths(&self, space: &mut Space<Window>, removed_width: i32) {
+    /// AFTER remove
+    /// BEFORE add
+    pub fn redo_widths(&self, space: &mut Space<Window>, available_width: i32) {
         let columns = self.privileged.len() as i32;
 
         if columns == 0 {
             return;
         }
 
-        let single_width_delta = removed_width / columns;
+        let single_width_delta = available_width / (columns);
 
         for (n_col, column) in self.privileged.iter().enumerate() {
-            for window in column {
+            for window in column.iter() {
                 let xdg = window.toplevel().unwrap();
-                
+
                 xdg.with_pending_state(|x| {
                     if let Some(size) = x.size.as_mut() {
                         size.w += single_width_delta;
                     }
                 });
-                
+
                 xdg.send_pending_configure();
 
-                let mut pos = space.element_location(window).expect("well this shouldn't happen");
+                let mut pos = space
+                    .element_location(window)
+                    .expect("well this shouldn't happen");
                 pos.x += single_width_delta * n_col as i32;
                 space.relocate_element(window, pos);
             }
@@ -212,22 +281,24 @@ impl Privileged {
         }
 
         let delta = gained_height / column.len() as i32;
-        
+
         for (idx, window) in column.iter().enumerate() {
             let xdg = window.toplevel().unwrap();
-                
+
             xdg.with_pending_state(|x| {
                 if let Some(size) = x.size.as_mut() {
                     size.h += delta;
                 }
             });
-            
+
             xdg.send_pending_configure();
 
-            let mut pos = space.element_location(window).expect("well this shouldn't happen");
+            let mut pos = space
+                .element_location(window)
+                .expect("well this shouldn't happen");
             pos.y += delta * idx as i32;
             space.relocate_element(window, pos);
-        } 
+        }
     }
 
     fn find_column(&self, window: Window) -> Option<(usize, usize)> {
@@ -253,8 +324,8 @@ impl Privileged {
         let window = &col[idx];
 
         space.unmap_elem(window);
-        let size = window.bbox().size;
-        
+        let size = window.geometry().size;
+
         if col.len() > 1 {
             col.remove(idx);
             self.redo_height(space, size.h, column_idx);
@@ -262,7 +333,51 @@ impl Privileged {
             self.privileged.remove(column_idx);
             self.redo_widths(space, size.w);
         }
+    }
 
+    pub fn find_window(&self, point: Point<i32, Logical>) -> Option<&Window> {
+        for col in self.privileged.iter() {
+            let tester = &col[0];
+            let mut rect = tester.geometry();
+            rect.size.h = self.area.size.h;
+
+            // found the column
+            if rect.contains(point) {
+                for window in col {
+                    if window.geometry().contains(point) {
+                        return Some(window);
+                    }
+                }
+
+                // haven't found it in the right column, it's in some weird gap between windows or something
+                break;
+            }
+        }
+
+        None
+    }
+
+    pub fn find_window_pos(&self, point: Point<i32, Logical>, space: &Space<Window>) -> Option<(&Window, Point<i32, Logical>)> {
+        for col in self.privileged.iter() {
+            let tester = &col[0];
+            let mut rect = tester.geometry();
+            rect.size.h = self.area.size.h;
+
+            // found the column
+            if rect.contains(point) {
+                for window in col {
+                    if window.geometry().contains(point) {
+                        let pos = space.element_location(window).unwrap();
+                        return Some((window, pos));
+                    }
+                }
+
+                // haven't found it in the right column, it's in some weird gap between windows or something
+                break;
+            }
+        }
+
+        None
     }
 }
 
@@ -281,7 +396,13 @@ impl LayoutController {
         area: Rectangle<i32, Logical>,
     ) -> Self {
         Self {
-            map: Map::new(rows, columns, cell_height, cell_width, Point::new(0, area.size.h)),
+            map: Map::new(
+                rows,
+                columns,
+                cell_height,
+                cell_width,
+                Point::new(0, area.size.h),
+            ),
             privileged: Privileged::new(area),
             space: Space::default(),
         }
@@ -337,12 +458,32 @@ impl LayoutController {
                 }
             }
         });
-        
+
         if out.is_some() {
             xdg.send_configure();
         }
 
         out
+    }
+
+    pub fn find_window(&self, point: Point<i32, Logical>) -> Option<&Window> {
+        if self.privileged.area.contains(point) {
+            // it's in the privileged
+            self.privileged.find_window(point)
+        } else {
+            // not in privileged, look at map
+            self.map.find_window(point)
+        }
+    }
+
+    pub fn find_window_pos(&self, point: Point<i32, Logical>) -> Option<(&Window, Point<i32, Logical>)> {
+        if self.privileged.area.contains(point) {
+            // it's in the privileged
+            self.privileged.find_window_pos(point, &self.space)
+        } else {
+            // not in privileged, look at map
+            self.map.find_window_pos(point, &self.space)
+        }
     }
 }
 

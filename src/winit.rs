@@ -10,6 +10,8 @@ pub fn init_winit(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut backend, winit) = winit::init()?;
 
+    dbg!(backend.window_size().to_logical(backend.scale_factor() as i32));
+
     let mode = Mode {
         size: backend.window_size(),
         refresh: 60_000,
@@ -67,7 +69,7 @@ pub fn init_winit(
                         [&state.layout.space],
                         &[],
                         &mut damage_tracker,
-                        [0.1, 0.1, 0.1, 1.0],
+                        [0.88, 0.69, 1.0, 1.0], // mauve
                     )
                     .unwrap();
                 }
