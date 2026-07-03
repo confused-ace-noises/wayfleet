@@ -1,35 +1,20 @@
 use std::{ffi::OsString, sync::Arc, time::Instant};
 
 use smithay::{
-    backend::renderer::utils::on_commit_buffer_handler,
-    desktop::Window,
-    input::{Seat, SeatHandler, SeatState},
-    reexports::{
+    desktop::{PopupManager, Window}, input::{Seat, SeatState}, reexports::{
         calloop::{self, EventLoop, Interest, LoopHandle, LoopSignal, generic::Generic},
-        wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode,
         wayland_server::{
-            Display, DisplayHandle, backend::ClientData, protocol::wl_surface::WlSurface,
+            Display, DisplayHandle,
         },
-    },
-    utils::{Logical, SERIAL_COUNTER, Size},
-    wayland::{
-        buffer::BufferHandler,
-        compositor::{
-            CompositorClientState, CompositorHandler, CompositorState, get_parent,
-            is_sync_subsurface,
-        },
-        output::OutputHandler,
-        seat::WaylandFocus,
-        shell::xdg::{
-            XdgShellHandler, XdgShellState,
-            decoration::{XdgDecorationHandler, XdgDecorationState},
-        },
-        shm::{ShmHandler, ShmState},
-        socket::ListeningSocketSource,
+    }, utils::{Logical, SERIAL_COUNTER, Size}, wayland::{
+        compositor::CompositorState, seat::WaylandFocus, selection::data_device::DataDeviceState, shell::xdg::{
+            XdgShellState,
+            decoration::XdgDecorationState,
+        }, shm::ShmState, socket::ListeningSocketSource,
     },
 };
 
-use crate::layout::{LayoutController, LayoutSettings};
+use crate::{handlers::ClientState, layout::controller::{LayoutController, LayoutSettings}};
 
 pub struct State {
     pub start_time: Instant,
@@ -48,7 +33,8 @@ pub struct State {
     pub seats: SeatState<Self>,
     pub seat: Seat<Self>,
     pub decorations: XdgDecorationState,
-    // pub space: Space<Window>,
+    pub popups: PopupManager,
+    pub data_device: DataDeviceState,
 }
 
 impl State {
@@ -99,12 +85,14 @@ impl State {
             compositor: CompositorState::new::<Self>(&display),
             shm: ShmState::new::<Self>(&display, vec![]),
             xdg_shell: XdgShellState::new::<Self>(&display),
+            data_device: DataDeviceState::new::<Self>(&display),
             seats,
             decorations: XdgDecorationState::new::<Self>(&display),
             display,
             socket: socket_name,
             window_size,
             seat,
+            popups: PopupManager::default(),
         }
     }
 
@@ -118,154 +106,3 @@ impl State {
         }
     }
 }
-
-impl CompositorHandler for State {
-    fn compositor_state(&mut self) -> &mut smithay::wayland::compositor::CompositorState {
-        &mut self.compositor
-    }
-
-    fn client_compositor_state<'a>(
-        &self,
-        client: &'a smithay::reexports::wayland_server::Client,
-    ) -> &'a smithay::wayland::compositor::CompositorClientState {
-        &client.get_data::<ClientState>().unwrap().compositor_state
-    }
-
-    fn commit(
-        &mut self,
-        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
-    ) {
-        on_commit_buffer_handler::<Self>(surface);
-
-        if !is_sync_subsurface(surface) {
-            let mut root = surface.clone();
-            while let Some(parent) = get_parent(&root) {
-                root = parent;
-            }
-            if let Some(window) = self
-                .layout
-                .space
-                .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == &root)
-            {
-                window.on_commit();
-            }
-        };
-
-        // xdg_shell::handle_commit(&mut self.popups, &self.space, surface);
-        // resize_grab::handle_commit(&mut self.space, surface);
-    }
-}
-
-impl ShmHandler for State {
-    fn shm_state(&self) -> &ShmState {
-        &self.shm
-    }
-}
-
-#[allow(unused_variables)] // tmp
-impl XdgShellHandler for State {
-    fn xdg_shell_state(&mut self) -> &mut XdgShellState {
-        &mut self.xdg_shell
-    }
-
-    fn new_toplevel(&mut self, surface: smithay::wayland::shell::xdg::ToplevelSurface) {
-        let map = &mut self.layout.map;
-
-        surface.with_pending_state(|state| {
-            state.size = Some(map.get_size());
-        });
-        surface.send_configure();
-
-        let window = Window::new_wayland_window(surface);
-        dbg!(&window);
-        self.layout.insert_generic(window.clone());
-        self.set_kb_focus(&window);
-    }
-
-    fn new_popup(
-        &mut self,
-        surface: smithay::wayland::shell::xdg::PopupSurface,
-        positioner: smithay::wayland::shell::xdg::PositionerState,
-    ) {
-        todo!()
-    }
-
-    fn grab(
-        &mut self,
-        surface: smithay::wayland::shell::xdg::PopupSurface,
-        seat: smithay::reexports::wayland_server::protocol::wl_seat::WlSeat,
-        serial: smithay::utils::Serial,
-    ) {
-        todo!()
-    }
-
-    fn reposition_request(
-        &mut self,
-        surface: smithay::wayland::shell::xdg::PopupSurface,
-        positioner: smithay::wayland::shell::xdg::PositionerState,
-        token: u32,
-    ) {
-        todo!()
-    }
-}
-
-impl XdgDecorationHandler for State {
-    fn new_decoration(&mut self, toplevel: smithay::wayland::shell::xdg::ToplevelSurface) {
-        toplevel.with_pending_state(|state| {
-            state.decoration_mode = Some(Mode::ServerSide);
-        });
-        toplevel.send_configure();
-    }
-
-    fn request_mode(
-        &mut self,
-        toplevel: smithay::wayland::shell::xdg::ToplevelSurface,
-        _mode: Mode,
-    ) {
-        toplevel.with_pending_state(|state| {
-            // just ignore the request :p
-            state.decoration_mode = Some(Mode::ServerSide);
-        });
-        toplevel.send_configure();
-    }
-
-    fn unset_mode(&mut self, toplevel: smithay::wayland::shell::xdg::ToplevelSurface) {
-        toplevel.with_pending_state(|state| {
-            state.decoration_mode = Some(Mode::ServerSide);
-        });
-        toplevel.send_configure();
-    }
-}
-
-impl SeatHandler for State {
-    type KeyboardFocus = WlSurface;
-
-    type PointerFocus = WlSurface;
-
-    type TouchFocus = WlSurface;
-
-    fn seat_state(&mut self) -> &mut smithay::input::SeatState<Self> {
-        &mut self.seats
-    }
-}
-
-impl BufferHandler for State {
-    fn buffer_destroyed(
-        &mut self,
-        _buffer: &smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer,
-    ) {
-        // do nothing for now i guess?
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct ClientState {
-    pub compositor_state: CompositorClientState,
-}
-
-impl ClientData for ClientState {}
-
-impl OutputHandler for State {}
-
-smithay::delegate_dispatch2!(State);

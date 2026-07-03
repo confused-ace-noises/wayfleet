@@ -10,7 +10,7 @@ pub fn init_winit(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (mut backend, winit) = winit::init()?;
 
-    dbg!(backend.window_size().to_logical(backend.scale_factor() as i32));
+    // dbg!(backend.window_size().to_logical(backend.scale_factor() as i32));
 
     let mode = Mode {
         size: backend.window_size(),

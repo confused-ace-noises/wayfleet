@@ -64,7 +64,7 @@ impl State {
 
                     let under = self
                         .layout
-                        .find_window_pos(pos.to_i32_round())
+                        .find_window_pos(pos)
                         .and_then(|(w, p)| Some((w.wl_surface()?.into_owned(), p.to_f64())));
 
                     pointer.motion(
@@ -94,6 +94,9 @@ impl State {
                             .layout
                             .find_window(pointer.current_location().to_i32_round())
                             .cloned()
+                            // .space
+                            // .element_under(pointer.current_location())
+                            // .map(|(w, l)| (w.clone(), l))
                         {
                             self.layout.space.raise_element(&window, true);
                             keyboard.inspect(|kb| {
