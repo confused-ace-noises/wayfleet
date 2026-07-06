@@ -1,18 +1,29 @@
-use smithay::{desktop::{Space, Window}, utils::{Logical, Point, Rectangle}};
+use std::time::Duration;
 
-use crate::layout::controller::{LayoutController, ResizeType};
+use smithay::{
+    desktop::{Space, Window},
+    input::keyboard::Layout,
+    utils::{Logical, Point, Rectangle},
+};
 
+use crate::layout::{
+    animation::{Animation, AnimationBase, AnimationHandle, Easing, InfoType, MoveAnimation},
+    controller::{LayoutController, ResizeType},
+    map::Direction,
+};
 
 pub struct Privileged {
     pub area: Rectangle<i32, Logical>,
     pub privileged: Vec<Vec<Window>>,
+    pub animation: AnimationHandle,
 }
 
 impl Privileged {
-    pub fn new(area: Rectangle<i32, Logical>) -> Self {
+    pub fn new(area: Rectangle<i32, Logical>, animation: AnimationHandle) -> Self {
         Self {
             privileged: vec![],
             area,
+            animation,
         }
     }
 
@@ -42,15 +53,7 @@ impl Privileged {
 
         for (n_col, column) in self.privileged.iter().enumerate() {
             for window in column.iter() {
-                let xdg = window.toplevel().unwrap();
-
-                xdg.with_pending_state(|x| {
-                    if let Some(size) = x.size.as_mut() {
-                        size.w += single_width_delta;
-                    }
-                });
-
-                xdg.send_pending_configure();
+                LayoutController::resize_delta(window, ResizeType::Width(single_width_delta));
 
                 let mut pos = space
                     .element_location(window)
@@ -61,6 +64,8 @@ impl Privileged {
         }
     }
 
+    /// AFTER remove
+    /// BEFORE add
     pub fn redo_height(&self, space: &mut Space<Window>, gained_height: i32, column_idx: usize) {
         let column = &self.privileged[column_idx];
 
@@ -71,15 +76,7 @@ impl Privileged {
         let delta = gained_height / column.len() as i32;
 
         for (idx, window) in column.iter().enumerate() {
-            let xdg = window.toplevel().unwrap();
-
-            xdg.with_pending_state(|x| {
-                if let Some(size) = x.size.as_mut() {
-                    size.h += delta;
-                }
-            });
-
-            xdg.send_pending_configure();
+            LayoutController::resize_delta(window, ResizeType::Height(delta));
 
             let mut pos = space
                 .element_location(window)
@@ -89,7 +86,98 @@ impl Privileged {
         }
     }
 
-    fn find_column(&self, window: Window) -> Option<(usize, usize)> {
+    pub fn swap_window(&mut self, window: &Window, space: &mut Space<Window>, direction: Direction) {
+        let Some((column_idx, idx)) = self.find_column(window) else {
+            return;
+        };
+
+        self.swap((column_idx, idx), space, direction);
+    }
+
+    pub fn swap(&mut self, (column_idx, idx): (usize, usize), space: &mut Space<Window>, direction: Direction) {
+
+        let mut other_column = column_idx;
+        let mut other_idx = idx;
+
+        match direction {
+            Direction::Up => other_idx -= 1,
+            Direction::Down => other_idx += 1,
+            Direction::Left => other_column -= 1,
+            Direction::Right => other_column += 1,
+        }
+
+        if column_idx != other_column {
+            // swap columns
+            let [col1, col2] = self
+                .privileged
+                .get_disjoint_mut([column_idx, other_column])
+                .unwrap();
+
+            let reference1 = space.element_location(&col1[0]).unwrap();
+            let reference2 = space.element_location(&col2[0]).unwrap();
+            let mut animation = self.animation.write().unwrap();
+
+            for window in col1.iter() {
+                let point = dbg!(space.element_location(window).unwrap());
+
+                animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                    InfoType::Final(Point::new(reference2.x, point.y)),
+                    window.clone(),
+                    space,
+                    Duration::from_millis(150),
+                    Easing::Linear,
+                    0,
+                )));
+            }
+
+            for window in col2.iter() {
+                let point = dbg!(space.element_location(window).unwrap());
+
+                animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                    InfoType::Final(Point::new(reference1.x, point.y)),
+                    window.clone(),
+                    space,
+                    Duration::from_millis(150),
+                    Easing::Linear,
+                    0,
+                )));
+            }
+
+            self.privileged.swap(column_idx, other_column);
+        } else {
+            // swap windows within column
+            let column = &mut self.privileged[column_idx];
+            let win1 = column.get(idx).unwrap();
+            let win2 = column.get(other_idx).unwrap();
+
+            let win1_pos = space.element_location(win1).unwrap();
+            let win2_pos = space.element_location(win2).unwrap();
+
+            let mut animation = self.animation.write().unwrap();
+
+            animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                InfoType::Final(win2_pos),
+                win1.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));            
+
+            animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                InfoType::Final(win1_pos),
+                win2.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+
+            column.swap(idx, other_idx);
+        }
+    }
+
+    fn find_column(&self, window: &Window) -> Option<(usize, usize)> {
         self.privileged
             .iter()
             .enumerate()
@@ -104,7 +192,7 @@ impl Privileged {
     }
 
     pub fn remove(&mut self, window: Window, space: &mut Space<Window>) {
-        let Some((column_idx, idx)) = self.find_column(window) else {
+        let Some((column_idx, idx)) = self.find_column(&window) else {
             return;
         };
 
@@ -153,10 +241,16 @@ impl Privileged {
     /// window.geometry() doesn't work as i thought, need to find the window position
     /// by knowing the layout, which isn't completed yet, so
     /// TODO, FIXME
-    pub fn find_window_pos(&self, point: Point<i32, Logical>, space: &Space<Window>) -> Option<(&Window, Point<i32, Logical>)> {
+    pub fn find_window_pos(
+        &self,
+        point: Point<i32, Logical>,
+        space: &Space<Window>,
+    ) -> Option<(&Window, Point<i32, Logical>)> {
         for (n, col) in self.privileged.iter().enumerate() {
             let tester = &col[0];
-            let Some(mut rect) = space.element_geometry(tester) else { continue };
+            let Some(mut rect) = space.element_geometry(tester) else {
+                continue;
+            };
             dbg!(rect);
             rect.size.h = self.area.size.h;
 

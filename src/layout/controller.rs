@@ -1,11 +1,20 @@
-use smithay::{desktop::{Space, Window}, utils::{Logical, Point, Rectangle, Size}};
+use std::{
+    cell::RefCell, collections::HashSet, sync::{Arc, RwLock}, time::{Duration, Instant},
+};
 
-use crate::layout::{map::{Coordinate, Map}, privileged::Privileged};
+use smithay::{
+    desktop::{Space, Window}, utils::{Logical, Point, Rectangle, Scale, Size},
+};
+
+use crate::layout::{
+    animation::{AnimationController, AnimationHandle}, map::{Coordinate, Map}, privileged::Privileged,
+};
 
 pub struct LayoutController {
     pub map: Map,
     pub privileged: Privileged,
     pub space: Space<Window>,
+    pub animation: AnimationHandle,
 }
 
 impl LayoutController {
@@ -16,6 +25,8 @@ impl LayoutController {
         cell_width: i32,
         area: Rectangle<i32, Logical>,
     ) -> Self {
+        let animation = AnimationHandle(Arc::new(RwLock::new(AnimationController::new(Duration::from_millis(16)))));
+
         Self {
             map: Map::new(
                 rows,
@@ -23,9 +34,11 @@ impl LayoutController {
                 cell_height,
                 cell_width,
                 Point::new(0, area.size.h),
+                animation.clone()
             ),
-            privileged: Privileged::new(area),
+            privileged: Privileged::new(area, animation.clone()),
             space: Space::default(),
+            animation
         }
     }
 
@@ -53,10 +66,16 @@ impl LayoutController {
         }
     }
 
+    pub fn insert_priv(&mut self, window: Window) {
+        let pos = self.privileged.insert(window.clone(), &mut self.space);
+        self.space.map_element(window, pos, true);
+    }
+
     pub fn resize(window: &Window, resize: ResizeType) -> Option<()> {
         let xdg = window.toplevel().unwrap();
         let out = xdg.with_pending_state(|state| match resize {
             ResizeType::Both(size) => {
+                dbg!(state.size);
                 state.size = Some(size);
                 Some(())
             }
@@ -121,6 +140,11 @@ impl LayoutController {
         out
     }
 
+    pub fn tick_animation(&mut self) {
+        let mut lock = self.animation.write().unwrap();
+        lock.tick(&mut self.space);
+    }
+
     // TODO: switch to faster algorithm once layout is fleshed out
     pub fn find_window(&self, point: Point<f64, Logical>) -> Option<&Window> {
         // * faster algo
@@ -135,7 +159,10 @@ impl LayoutController {
     }
 
     // TODO: switch to faster algorithm once layout is fleshed out
-    pub fn find_window_pos(&self, point: Point<f64, Logical>) -> Option<(&Window, Point<i32, Logical>)> {
+    pub fn find_window_pos(
+        &self,
+        point: Point<f64, Logical>,
+    ) -> Option<(&Window, Point<i32, Logical>)> {
         // * faster algo
         // if self.privileged.area.contains(point) {
         //     // it's in the privileged
@@ -169,4 +196,3 @@ pub struct LayoutSettings {
     pub cell_width: i32,
     pub area: Rectangle<i32, Logical>,
 }
-

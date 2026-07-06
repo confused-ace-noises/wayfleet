@@ -1,0 +1,1825 @@
+   Compiling wayfleet v0.1.0 (/home/arch/rust/wayfleet)
+warning: unused imports: `Instant`, `cell::RefCell`, and `collections::HashSet`
+ --> src/layout/controller.rs:2:5
+  |
+2 |     cell::RefCell, collections::HashSet, sync::{Arc, RwLock}, time::{Duration, Instant},
+  |     ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^                                        ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Scale`
+ --> src/layout/controller.rs:6:66
+  |
+6 |     desktop::{Space, Window}, utils::{Logical, Point, Rectangle, Scale, Size},
+  |                                                                  ^^^^^
+
+warning: unused imports: `Range` and `collections::HashSet`
+ --> src/layout/map.rs:2:5
+  |
+2 |     collections::HashSet,
+  |     ^^^^^^^^^^^^^^^^^^^^
+3 |     mem,
+4 |     ops::{Deref, DerefMut, Index, IndexMut, Range},
+  |                                             ^^^^^
+
+warning: unused imports: `rustix::net::ipproto::TP`, `wayland::seat::WaylandFocus`, and `winit::platform::x11::ffi::DontPreferBlanking`
+  --> src/layout/map.rs:11:17
+   |
+11 |     reexports::{rustix::net::ipproto::TP, winit::platform::x11::ffi::DontPreferBlanking},
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+12 |     utils::{Logical, Point, Rectangle, Size},
+13 |     wayland::seat::WaylandFocus,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `LayoutController` and `ResizeType`
+  --> src/layout/map.rs:17:124
+   |
+17 | ...ion, ResizeAnimation}, controller::{LayoutController, ResizeType}, map::TileType::Regular,
+   |                                        ^^^^^^^^^^^^^^^^  ^^^^^^^^^^
+
+warning: unused import: `Rectangle`
+ --> src/winit.rs:8:101
+  |
+8 | ...ixel}, reexports::calloop::EventLoop, utils::{Rectangle, Scale, Transform},
+  |                                                  ^^^^^^^^^
+
+warning: unused variable: `rows`
+   --> src/layout/map.rs:410:43
+    |
+410 |             tile_type: TileType::Leader { rows, cols, coord },
+    |                                           ^^^^ help: try ignoring the field: `rows: _`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cols`
+   --> src/layout/map.rs:410:49
+    |
+410 |             tile_type: TileType::Leader { rows, cols, coord },
+    |                                                 ^^^^ help: try ignoring the field: `cols: _`
+
+warning: unused variable: `icon`
+  --> src/handlers/mod.rs:59:9
+   |
+59 |         icon: Option<WlSurface>,
+   |         ^^^^ help: if this is intentional, prefix it with an underscore: `_icon`
+
+warning: method `remove_single` is never used
+   --> src/layout/map.rs:649:8
+    |
+207 | impl Map {
+    | -------- method in this implementation
+...
+649 |     fn remove_single(&mut self, position: &Coordinate) -> Option<Tile> {
+    |        ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `wayfleet` (lib) generated 10 warnings (run `cargo fix --lib -p wayfleet` to apply 9 suggestions)
+warning: unused import: `x11rb::protocol::xkb::SelectEventsAuxNewKeyboardNotify`
+ --> src/main.rs:3:72
+  |
+3 | ...yland_server::Display, x11rb::protocol::xkb::SelectEventsAuxNewKeyboardNotify}, utils::{Point, Rectan...
+  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `wayfleet` (bin "wayfleet") generated 1 warning (run `cargo fix --bin "wayfleet" -p wayfleet` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.20s
+     Running `target/debug/wayfleet`
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+libEGL warning: failed to get driver name for fd -1
+
+libEGL warning: MESA-LOADER: failed to retrieve device information
+
+libEGL warning: failed to get driver name for fd -1
+
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+libEGL warning: failed to get driver name for fd -1
+
+libEGL warning: failed to get driver name for fd -1
+
+libEGL warning: MESA-LOADER: failed to retrieve device information
+
+libEGL warning: failed to get driver name for fd -1
+
+libEGL warning: MESA-LOADER: failed to retrieve device information
+
+libEGL warning: failed to get driver name for fd -1
+
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+done
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 200,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 200,
+    },
+)
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 211,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 200,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 222,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 211,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 235,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 222,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 255,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 235,
+    },
+)
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 267,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 255,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 278,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 267,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 289,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 278,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 300,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 289,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 311,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 300,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 323,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 311,
+    },
+)
+--------
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 334,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 323,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 345,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 334,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 355,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 345,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 367,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 355,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 378,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 367,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 389,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 378,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 389,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+[src/main.rs:45:17] &state.layout.map.first_available = Some(
+    Coordinate {
+        row: 1,
+        column: 1,
+    },
+)
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 200,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 400,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 400,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 211,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 389,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 400,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 222,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 378,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 389,
+    },
+)
+--------
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 233,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 367,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 378,
+    },
+)
+--------
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 245,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 355,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 367,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 255,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 345,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 355,
+    },
+)
+--------
+libEGL warning: failed to get driver name for fd -1
+
+libEGL warning: MESA-LOADER: failed to retrieve device information
+
+libEGL warning: failed to get driver name for fd -1
+
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 267,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 333,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 345,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 278,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 322,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 333,
+    },
+)
+--------
+--------
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 289,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 311,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 322,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 300,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 300,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 311,
+    },
+)
+--------
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 311,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 289,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 300,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 322,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 277,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 289,
+    },
+)
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 333,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 267,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 277,
+    },
+)
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 345,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 255,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 267,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 355,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 245,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 255,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 367,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 233,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 245,
+    },
+)
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 378,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 222,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 233,
+    },
+)
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 389,
+}
+[src/layout/animation.rs:289:9] size = Size<smithay::utils::geometry::Logical> {
+    w: 200,
+    h: 211,
+}
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 222,
+    },
+)
+--------
+--------
+fuck!
+fuck!
+fuck!
+--------
+--------
+[src/layout/controller.rs:73:17] state.size = Some(
+    Size<smithay::utils::geometry::Logical> {
+        w: 200,
+        h: 211,
+    },
+)
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 200,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 0,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 211,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 11,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 222,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 22,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 233,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 33,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 245,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 45,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 255,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 55,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 267,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 67,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 277,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 77,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 289,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 89,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 299,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 100,
+    y: 400,
+}
+fuck!
+fuck!
+fuck!
+fuck!
+--------
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 311,
+    y: 400,
+}
+[src/layout/animation.rs:270:9] Point::new(y1.round() as i32, y2.round() as i32) = Point<smithay::utils::geometry::Logical> {
+    x: 111,
+    y: 400,
+}
+Io error: Connection reset by peer (os error 104)
+Io error: Connection reset by peer (os error 104)
