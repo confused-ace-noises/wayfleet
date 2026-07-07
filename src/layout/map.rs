@@ -1,11 +1,8 @@
 use std::{
-    collections::HashSet,
-    mem,
-    ops::{Deref, DerefMut, Index, IndexMut, Range},
-    time::{Duration, Instant},
+    collections::HashSet, iter, mem, ops::{Deref, DerefMut, Index, IndexMut, Not, Range}, time::{Duration, Instant},
 };
 
-use derive_more::Add;
+use derive_more::{Add, Sub};
 use smithay::{
     desktop::{Space, Window},
     reexports::{rustix::net::ipproto::TP, winit::platform::x11::ffi::DontPreferBlanking},
@@ -14,13 +11,23 @@ use smithay::{
 };
 
 use crate::layout::{
-    animation::{Animation, AnimationBase, AnimationHandle, Easing, InfoType, MoveAnimation, ResizeAnimation}, controller::{LayoutController, ResizeType}, map::TileType::Regular,
+    animation::{
+        Animation, AnimationBase, AnimationHandle, Easing, InfoType, MoveAnimation, ResizeAnimation,
+    },
+    controller::{LayoutController, ResizeType},
+    map::TileType::Regular,
 };
 
 #[derive(Debug, Clone)]
 pub struct Tile {
     pub window: Window,
     pub tile_type: TileType,
+}
+
+impl PartialEq for Tile {
+    fn eq(&self, other: &Self) -> bool {
+        self.leader_coord() == other.leader_coord()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +57,54 @@ impl Tile {
             window,
             tile_type: TileType::Regular(coord),
         }
+    }
+
+    pub fn leader_coord(&self) -> Coordinate {
+        match self.tile_type {
+            TileType::Leader { coord, .. } => coord,
+            Regular(coordinate) => coordinate,
+        }
+    }
+
+    pub fn project<'a>(&self, map: &'a Map, delta: Coordinate) -> Vec<&'a Tile> {
+        let root_leader = map.get_leader(self);
+
+        let mut vec = self.bounding_coords(map).into_iter().filter_map(|x| {
+            
+            
+            let coord = x + delta;
+
+            println!("delta: {delta:?}");
+
+            let tile = map.map.get(coord.row as usize)?.get(coord.column as usize)?.as_ref()?;
+
+            let leader = map.get_leader(tile);
+            
+            if *root_leader == *leader {
+                None
+            } else {
+                Some(leader)
+            }
+            
+        }).collect::<Vec<_>>();
+
+        vec.dedup();
+
+        vec
+    }
+
+    pub fn bounding_coords(&self, map: &Map) -> Vec<Coordinate> {
+        let TileType::Leader { rows, cols, coord } = map.get_leader(self).tile_type else { unreachable!() };
+
+        let mut coords = Vec::with_capacity((rows+1)*(cols+1));
+
+        for row in 0..=rows {
+            for col in 0..=cols {
+                coords.push(coord + Coordinate { row: row as i32, column: col as i32 });
+            }
+        }
+
+        coords
     }
 
     pub fn find_adjacent(&self, map: &Map, direction: &Direction) -> Vec<Coordinate> {
@@ -205,6 +260,368 @@ impl Map {
         }
     }
 
+    pub fn swap_or_move(
+        &mut self,
+        position: &Coordinate,
+        direction: Direction,
+        space: &mut Space<Window>,
+    ) -> Option<bool> {
+        let ((g1, travel_1), (g2, travel_2)) = self.make_swap_groups(*position, direction)?;
+
+        let calculate_travel = |g: &Vec<&Tile>| {
+            g.iter()
+                .filter_map(|x| match x.tile_type {
+                    TileType::Leader { rows, cols, .. } => match direction {
+                        Direction::Up | Direction::Down => Some(rows+1),
+                        Direction::Left | Direction::Right => Some(cols+1),
+                    },
+                    Regular(_) => None,
+                })
+                .max()
+                // .unwrap()
+                .unwrap_or(1) // this can onluy happen on g2, and if g2 really does no have any members, just treat it like a move
+        };
+
+        let mut travel_1 = travel_1 as i32;
+        let mut travel_2 = travel_2 as i32;
+
+        match direction {
+            Direction::Up   | Direction::Left  => travel_1 = -travel_1,
+            Direction::Down | Direction::Right => travel_2 = -travel_2,
+        }
+
+        let (dist_1, dist_2) = match direction {
+            Direction::Up | Direction::Down => (
+                Point::<_, Logical>::new(0, travel_1 * self.cell_height),
+                Point::<_, Logical>::new(0, travel_2 * self.cell_height),
+            ),
+            Direction::Left | Direction::Right => (
+                Point::<_, Logical>::new(travel_1 * self.cell_width, 0),
+                Point::<_, Logical>::new(travel_2 * self.cell_width, 0),
+            ),
+        };
+
+        let (travel_1, travel_2) = match direction {
+            Direction::Up | Direction::Down => (
+                Coordinate { row: travel_1, column: 0 }, 
+                Coordinate { row: travel_2, column: 0 },
+            ),
+            Direction::Left | Direction::Right => (
+                Coordinate { row: 0, column: travel_1 }, 
+                Coordinate { row: 0, column: travel_2 },
+            ),
+        };
+
+
+        let mut anim_lock = self.animation.write().unwrap();
+
+        let mut anim = |result, window| {
+            anim_lock.schedule(Animation::Move(AnimationBase::new(
+                result,
+                window,
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+        };
+
+        println!("g1: {:#?}", g1);
+        
+        for Tile { window, .. } in g1.iter() {
+            println!("g1!");
+            anim(InfoType::Delta(dist_1), window.clone());
+        }
+        
+        println!("g2: {:#?}", g2);
+
+        for Tile { window, .. } in g2.iter() {
+            println!("g2!");
+            anim(InfoType::Delta(dist_2), window.clone());
+        }
+
+        drop(anim_lock);
+
+        let g1 = g1.into_iter().cloned().collect::<Vec<_>>();
+        let g2 = g2.into_iter().cloned().collect::<Vec<_>>();
+
+        for tile in g1.iter().chain(g2.iter())  {
+            let Tile { tile_type: TileType::Leader { coord, .. }, ..} = tile else { unreachable!() };
+            // SAFETY:
+            // the windows *will* get screwed up, but they're gonna be fixed later after the move
+            unsafe { self.change_regulars(*coord, None) };
+            self[coord] = None;
+        }
+
+        println!("has cleared? {:#?}", self.map);
+        
+        for mut tile in g1 {
+            let Tile { tile_type: TileType::Leader { coord, .. }, ..} = &mut tile else { unreachable!() };
+
+            let cloned = *coord + travel_1;
+
+            *coord = cloned;
+
+            self[&cloned] = Some(tile);
+    
+
+            unsafe { self.repoint_regualr_tiles(cloned); }
+        }
+
+        println!("g1 insert: {:#?}", self.map);
+
+        for mut tile in g2 {
+            let Tile { tile_type: TileType::Leader { coord, .. }, ..} = &mut tile else { unreachable!() };
+            
+            let cloned = *coord + travel_2;
+
+            *coord = cloned;
+
+            self[&cloned] = Some(tile);
+    
+
+            unsafe { self.repoint_regualr_tiles(cloned); }
+        }
+
+        println!("performed swap: {:#?}", self.map);
+
+        Some(true)
+    }
+
+    fn swap_build_groups(
+        &self,
+        start: Coordinate,
+        direction: Direction,
+    ) -> Option<(Vec<&Tile>, Vec<&Tile>)> {
+        let step: Coordinate = start.step_towards(direction);
+        
+        // check if we're going outside boundries
+        let _ = self.map.get(step.row as usize)?.get(step.column as usize)?;
+
+        println!("passed out of bounds check");
+
+        let mut g1: Vec<&Tile> = Vec::new();
+        let mut g2: Vec<&Tile> = Vec::new();
+
+        let current = self[&start].as_ref()?;
+        let leader = self.get_leader(current);
+
+        // g1.push(leader);
+
+        let mut no_new_tiles = false;
+        let mut comparison_direction = direction;
+
+        // group being expanded right now
+        let mut current_group = &mut g1;
+        let mut tmp = &mut g2;
+
+        let mut to_search = vec![leader];
+        // let mut found = vec![];
+
+        while !no_new_tiles {
+            dbg!(&current_group);
+            dbg!(&tmp);
+
+            no_new_tiles = true;
+            let searching = mem::take(&mut to_search);
+
+            println!("searching: {:#?}", searching);
+
+            for searched in searching {
+                println!("loop");
+                if !current_group.contains(&searched) {
+                    println!("pushed something");
+                    current_group.push(searched);
+                    no_new_tiles = false;
+                }
+
+                let unique_leaders = self.get_unique_leaders(
+                        dbg!(searched.find_adjacent(self, &comparison_direction)),
+                    );
+
+                println!("unique_leaders: {:#?}", unique_leaders);
+
+                to_search.extend(
+                    unique_leaders
+                );
+            }
+
+            mem::swap(&mut current_group, &mut tmp); // swap the *pointers*
+            comparison_direction = !comparison_direction; // change comparison direction so that g1 targets g2 and vice versa
+        }
+
+        Some((g1, g2))
+    }
+
+    fn make_swap_groups(
+        &self,
+        start: Coordinate,
+        direction: Direction,
+    ) -> Option<((Vec<&Tile>, i32), (Vec<&Tile>, i32))> {
+        
+        let step: Coordinate = start.step_towards(direction);
+        
+        // check if we're going outside boundries
+        let _ = self.map.get(step.row as usize)?.get(step.column as usize)?;
+        
+        println!("passed out of bounds check");
+        
+        let current = self[&start].as_ref()?;
+        let leader = self.get_leader(current);
+        
+        let mut pivot_g1 = dbg!(leader.find_outskirts(self, &direction)[0]);
+        let mut pivot_g2 = dbg!(pivot_g1.step_towards(direction));
+
+        let calc_dist = |pivot: &Coordinate, tile: &Tile, current_direction: Direction, is_starting_dir: bool| {
+            // TODO: figure out why current_direction shouldn't be flipped
+            let farthest = tile.find_outskirts(self, &current_direction)[0];
+            
+            println!("tile : {:?} has farthest: {farthest:?}", tile.tile_type);
+
+            let dist: Coordinate = *pivot - farthest;
+            
+            println!("resulting dist: {dist:?}");
+
+            match current_direction {
+                Direction::Up | Direction::Down => {
+                    dbg!(dist.row + if is_starting_dir { 1 } else { -1 })
+                },
+
+                Direction::Left | Direction::Right => dbg!(dist.column + if is_starting_dir { 1 } else { -1 }),
+            }
+        };
+
+        let calculate_travel = |g: &Vec<&Tile>, pivot: &Coordinate, current_direction: Direction, is_starting_dir: bool| {
+            let dist = g.iter()
+                .filter_map(|x| match x.tile_type {
+                    // TODO; fix distance calculation to fit windows away from the pivot line
+                    TileType::Leader { .. } => {                        
+                       Some(calc_dist(pivot, x, current_direction, is_starting_dir))
+                    },
+                    Regular(_) => {
+                        println!("none somehow????");
+                        None
+                    },
+                })
+                .fold(0, |mut acc: i32, x| {
+                    if x.abs() > acc.abs() {
+                        acc = x;
+                    }
+
+                    acc
+                });
+                
+            if dist == 0 { // this can onluy happen on g2, and if g2 really does no have any members, just treat it like a move
+                1
+            } else {
+                dist
+            }
+        };
+
+        let TileType::Leader { rows: root_rows, cols: root_cols, .. } = leader.tile_type else { unreachable!() };
+
+        let mut g1: Vec<&Tile> = Vec::new();
+        let mut g2: Vec<&Tile> = Vec::new();
+        
+        g1.push(leader);
+
+        let mut current_projecting = &mut g1;
+        let mut current_target = &mut g2;
+
+        let mut projecting_pivot = &mut pivot_g1;
+        let mut target_pivot = &mut pivot_g2;
+     
+        let mut g1_dist: i32 = 1;
+        let mut g2_dist = match direction {
+            Direction::Up | Direction::Down => root_rows + 1,
+            Direction::Left | Direction::Right => root_cols + 1,
+        } as i32 ;
+        
+        let mut projecting_has_to_travel = &mut g1_dist;
+        let mut target_has_to_travel = &mut g2_dist;
+        
+        let mut current_direction = direction;
+        
+        let mut finish = false;
+        
+        
+        loop {
+            // 1. make bounding box
+            // 2. check if movement is ok
+            // 3. if not, change dist until it is
+            // 4. swap groups, repeat
+
+            let new_blocking = {
+                current_projecting.iter().map(|tile| {
+                    println!("proj_dist: {}", *projecting_has_to_travel as usize);
+                    // 1.
+                    tile.project(self, dbg!(Coordinate { row: 0, column: 0 }.step_several(current_direction, *projecting_has_to_travel)))
+                }).fold(Vec::new(), |mut acc: Vec<&Tile>, tiles| {
+                    for tile in tiles {
+                        if !acc.contains(&tile) && !current_target.contains(&tile) {
+                            acc.push(tile);
+                            current_target.push(tile);
+                        }
+                    }
+                
+                    acc
+                })
+            };
+            
+            // 2.
+            let new_dist = dbg!(-calculate_travel(&new_blocking, target_pivot, current_direction, current_direction != direction));
+
+            // 3.
+            if new_dist.abs() > projecting_has_to_travel.abs() {
+                *projecting_has_to_travel = new_dist;
+                finish = false;
+            } else {
+                if finish {
+                    break;
+                }
+
+                finish = true;
+            }
+
+            // 4.
+            current_direction = !current_direction;
+            mem::swap(&mut current_projecting, &mut current_target);
+            mem::swap(&mut projecting_has_to_travel, &mut target_has_to_travel);
+            mem::swap(&mut projecting_pivot, &mut target_pivot);
+        }   
+
+        Some(((g1, g1_dist), (g2, g2_dist)))
+    }
+
+    fn get_unique_leaders(&self, adj: Vec<Coordinate>) -> Vec<&Tile> {
+        adj.into_iter()
+            .filter_map(|x| {
+                let tile = self[&x].as_ref()?;
+
+                println!("found tile: {tile:?}");
+
+                let coordinate = match tile.tile_type {
+                    TileType::Leader { coord, .. } => coord,
+                    Regular(coord) => coord,
+                };
+
+                Some(coordinate)
+            })
+            .fold(Vec::new(), |mut acc, val| {
+                if !acc.contains(&val) {
+                    acc.push(val);
+                }
+
+                acc
+            })
+            .into_iter()
+            .map(|x| {
+                println!("unique leaders print {x:?}");
+                self[&x].as_ref().unwrap()
+            })
+            .collect::<Vec<_>>()
+    }
+
     pub fn change_cells(
         &mut self,
         position: &Coordinate,
@@ -249,29 +666,33 @@ impl Map {
             let start = Instant::now();
 
             if new_coord != coord {
-                anim_lock.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new_with_time(
-                    InfoType::Final(self.get_position(new_coord)),
+                anim_lock.schedule(Animation::Move(
+                    AnimationBase::<MoveAnimation>::new_with_time(
+                        InfoType::Final(self.get_position(new_coord)),
+                        tile.window.clone(),
+                        space,
+                        Duration::from_millis(150),
+                        Easing::EaseInOut,
+                        start,
+                        // this is just a magic number, i thought it should
+                        // be 1 but it works with 2 for some reason? idk
+                        2,
+                    ),
+                ));
+                // space.relocate_element(&tile.window, self.get_position(new_coord));
+            }
+            // let start = Instant::now();
+            anim_lock.schedule(Animation::Resize(
+                AnimationBase::<ResizeAnimation>::new_with_time(
+                    InfoType::Delta(anim_delta),
                     tile.window.clone(),
                     space,
                     Duration::from_millis(150),
                     Easing::EaseInOut,
                     start,
-                    // this is just a magic number, i thought it should
-                    // be 1 but it works with 2 for some reason? idk
-                    2 
-                )));
-                // space.relocate_element(&tile.window, self.get_position(new_coord));
-            }
-            // let start = Instant::now();
-            anim_lock.schedule(Animation::Resize(AnimationBase::<ResizeAnimation>::new_with_time(
-                InfoType::Delta(anim_delta),
-                tile.window.clone(),
-                space,
-                Duration::from_millis(150),
-                Easing::EaseInOut,
-                start,
-                0
-            )));
+                    0,
+                ),
+            ));
 
             drop(anim_lock);
 
@@ -341,7 +762,7 @@ impl Map {
                 space,
                 Duration::from_millis(150),
                 Easing::EaseInOut,
-                0
+                0,
             )));
         }
 
@@ -463,6 +884,12 @@ impl Map {
         }
     }
 
+    pub fn get_leader_mut<'a>(&'a mut self, tile: &'a mut Tile) -> &'a mut Tile {
+        match tile.tile_type {
+            TileType::Leader { .. } => tile,
+            Regular(coordinate) => self[&coordinate].as_mut().unwrap(),
+        }
+    }
     /// # Safety
     /// doesn't check if there's already a window where you wanna move
     pub unsafe fn move_tile(
@@ -549,7 +976,7 @@ impl Map {
             space,
             Duration::from_millis(150),
             Easing::EaseInOut,
-            0
+            0,
         )));
     }
 
@@ -559,9 +986,19 @@ impl Map {
     /// # Panics
     /// will panic if leader isn't actually a leader.
     pub unsafe fn repoint_regualr_tiles(&mut self, leader: Coordinate) {
+        let Tile { window, .. } = self[&leader].as_ref().unwrap();
+        unsafe { self.change_regulars(leader, Some(Tile::new_regular(window.clone(), leader))) };
+    }
+
+    /// # Safety
+    /// forceful function, could break some windows
+    ///
+    /// # Panics
+    /// will panic if leader isn't actually a leader.
+    pub unsafe fn change_regulars(&mut self, leader: Coordinate, change_to: Option<Tile>) {
         let Some(Tile {
             tile_type: TileType::Leader { rows, cols, .. },
-            window,
+            ..
         }) = self[&leader].as_ref()
         else {
             panic!("wrong arguments passed to repoint_regular_arguments")
@@ -574,16 +1011,14 @@ impl Map {
             };
         let mut first = true;
 
-        let window = window.clone();
-
-        for r in leader.row..last.row {
-            for c in leader.column..last.column {
+        for r in leader.row..=last.row {
+            for c in leader.column..=last.column {
                 if first {
                     first = false;
                     continue;
                 }
 
-                self[&(r, c).into()] = Some(Tile::new_regular(window.clone(), leader))
+                self[&(r, c).into()] = change_to.clone()
             }
         }
     }
@@ -767,7 +1202,7 @@ impl IndexMut<&Coordinate> for Map {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Direction {
     Up,
     Down,
@@ -775,9 +1210,20 @@ pub enum Direction {
     Right,
 }
 
-impl Direction {}
+impl Not for Direction {
+    type Output = Self;
 
-#[derive(Debug, Copy, Clone, Default, PartialEq, PartialOrd, Eq, Hash, Add)]
+    fn not(self) -> Self::Output {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, PartialOrd, Eq, Hash, Add, Sub)]
 pub struct Coordinate {
     pub row: i32,
     pub column: i32,
@@ -812,6 +1258,18 @@ impl Coordinate {
                         Direction::Right => (0, 0),
                     }
                 }
+            })
+    }
+
+    pub fn step_several(&self, direction: Direction, n: i32) -> Self {
+        let n = n as i32;
+        
+        *self
+            + Into::<Coordinate>::into(match direction {
+                Direction::Up => (-n, 0),
+                Direction::Down => (n, 0),
+                Direction::Left => (0, -n),
+                Direction::Right => (0, n),
             })
     }
 }

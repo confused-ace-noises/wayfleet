@@ -1,10 +1,27 @@
-[package]
-name = "wayfleet"
+[workspace]
+resolver = "3"
+members = [
+    "wayfleet-config"
+]
+
+[workspace.dependencies]
+derive_more = { version = "2.1.1", features = ["full"] }
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
+
+
+[package]
+name = "wayfleet"
+version.workspace = true
+edition.workspace = true
+
 [dependencies]
-derive_more = { version = "2.1.1", features = ["full"] }
+derive_more.workspace = true
+# serde = "1.0.228"
+# toml = "1.1.2+spec-1.1.0"
 
 [dependencies.smithay]
 git = "https://github.com/Smithay/smithay/"

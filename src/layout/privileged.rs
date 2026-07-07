@@ -86,15 +86,15 @@ impl Privileged {
         }
     }
 
-    pub fn swap_window(&mut self, window: &Window, space: &mut Space<Window>, direction: Direction) {
+    pub fn swap_window(&mut self, window: &Window, direction: Direction, space: &mut Space<Window>) {
         let Some((column_idx, idx)) = self.find_column(window) else {
             return;
         };
 
-        self.swap((column_idx, idx), space, direction);
+        self.swap((column_idx, idx), direction, space);
     }
 
-    pub fn swap(&mut self, (column_idx, idx): (usize, usize), space: &mut Space<Window>, direction: Direction) {
+    pub fn swap(&mut self, (column_idx, idx): (usize, usize), direction: Direction, space: &mut Space<Window>) {
 
         let mut other_column = column_idx;
         let mut other_idx = idx;
