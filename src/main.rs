@@ -1,14 +1,18 @@
 use std::{time::{Duration, Instant}};
-
+use miette::Result;
 use smithay::{reexports::{calloop::EventLoop, wayland_server::Display}, utils::{Point, Rectangle, Size}};
 use wayfleet::{layout::{controller::LayoutSettings, map::{Coordinate, Direction}}, state::State};
-fn main() {
+use wayfleet_config::{Config, error::ConfigError};
+
+const CONFIG_FILE: &str = "config.toml";
+
+fn main() -> Result<()> {
+    let config = Config::parse(CONFIG_FILE)?;
+
     let mut event_loop = EventLoop::<'static, State>::try_new().unwrap();
     let display = Display::<State>::new().unwrap();
 
-    let mut state = State::new(&mut event_loop, display, LayoutSettings { rows: 4, columns: 4, cell_height: 200, cell_width: 200, area: Rectangle::new(Point::new(0, 0), Size::new(1472, 200))}, Size::new(1473, 976));
-
-    wayfleet::winit::init_winit(&mut event_loop, &mut state).unwrap();
+    let mut state = wayfleet::winit::init_winit(&mut event_loop, display, config).unwrap();
 
     unsafe { std::env::set_var("WAYLAND_DISPLAY", &state.socket) };
 
@@ -20,10 +24,10 @@ fn main() {
     event_loop.run(None, &mut state, |state| {    
         println!("--------");
         if spawned.is_none() {
+            std::process::Command::new("alacritty").spawn().ok();
             std::process::Command::new("kitty").spawn().ok();
             std::process::Command::new("alacritty").spawn().ok();
-            std::process::Command::new("alacritty").spawn().ok();
-            // std::process::Command::new("kitty").spawn().ok();
+            std::process::Command::new("kitty").spawn().ok();
             spawned = Some(false);
         }
 
@@ -32,7 +36,7 @@ fn main() {
             state.layout.map.change_cells(&(0, 0).into(), Direction::Down, false, &mut state.layout.space);
             state.layout.map.swap_or_move(&(0, 1).into(), Direction::Down, &mut state.layout.space);
             state.layout.map.swap_or_move(&(0, 2).into(), Direction::Left, &mut state.layout.space);
-            state.layout.map.change_cells(&(1, 1).into(), Direction::Down, false, &mut state.layout.space);
+            // state.layout.map.change_cells(&(1, 1).into(), Direction::Down, false, &mut state.layout.space);
             
             spawned = Some(true);
             println!("{:#?}", state.layout.map.map);
@@ -59,4 +63,6 @@ fn main() {
 
         state.layout.tick_animation();
     }).unwrap();
+
+    Ok(())
 }

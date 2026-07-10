@@ -1,0 +1,10 @@
+[privileged]
+size = { height = 10, width = "auto" }
+
+[privileged.margins]
+right = 30
+
+[map]
+size = { rows = 2, columns = "auto" }
+cells = { height = 200, width = 250 }
+spaces = { horizontal = 10, vertical = 10 }

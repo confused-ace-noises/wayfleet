@@ -1,18 +1,19 @@
 use std::{ffi::OsString, sync::Arc, time::Instant};
 
 use smithay::{
-    desktop::{PopupManager, Window}, input::{Seat, SeatState}, reexports::{
+    desktop::{PopupManager, Space, Window}, input::{Seat, SeatState}, reexports::{
         calloop::{self, EventLoop, Interest, LoopHandle, LoopSignal, generic::Generic},
         wayland_server::{
             Display, DisplayHandle,
         },
-    }, utils::{Logical, SERIAL_COUNTER, Size}, wayland::{
+    }, utils::{Logical, Physical, SERIAL_COUNTER, Scale, Size}, wayland::{
         compositor::CompositorState, seat::WaylandFocus, selection::data_device::DataDeviceState, shell::xdg::{
             XdgShellState,
             decoration::XdgDecorationState,
         }, shm::ShmState, socket::ListeningSocketSource,
     },
 };
+use wayfleet_config::Config;
 
 use crate::{handlers::ClientState, layout::controller::{LayoutController, LayoutSettings}};
 
@@ -23,8 +24,7 @@ pub struct State {
     pub display: DisplayHandle,
     pub layout: LayoutController,
     pub socket: OsString,
-
-    pub window_size: Size<i32, Logical>,
+    pub output_state: OutputState,
 
     // smithay state
     pub compositor: CompositorState,
@@ -41,8 +41,8 @@ impl State {
     pub fn new(
         event_loop: &mut EventLoop<'static, Self>,
         display_real: Display<Self>,
-        settings: LayoutSettings,
-        window_size: Size<i32, Logical>,
+        config: Config,
+        output_state: OutputState,
     ) -> Self {
         let start_time = Instant::now();
         let loop_signal = event_loop.get_signal();
@@ -81,7 +81,7 @@ impl State {
             loop_signal,
             start_time,
             loop_handle,
-            layout: LayoutController::new(settings),
+            layout: LayoutController::new(config, &output_state),
             compositor: CompositorState::new::<Self>(&display),
             shm: ShmState::new::<Self>(&display, vec![]),
             xdg_shell: XdgShellState::new::<Self>(&display),
@@ -90,7 +90,7 @@ impl State {
             decorations: XdgDecorationState::new::<Self>(&display),
             display,
             socket: socket_name,
-            window_size,
+            output_state,
             seat,
             popups: PopupManager::default(),
         }
@@ -104,5 +104,18 @@ impl State {
                 SERIAL_COUNTER.next_serial(),
             );
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct OutputState {
+    pub size: Size<i32, Physical>,
+    pub scale_factor: i32,
+    pub changed: bool,
+}
+
+impl OutputState {
+    pub fn logical_size(&self) -> Size<i32, Logical> {
+        self.size.to_logical(Scale::from(self.scale_factor))
     }
 }

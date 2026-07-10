@@ -5,10 +5,11 @@ use std::{
 use smithay::{
     desktop::{Space, Window}, utils::{Logical, Point, Rectangle, Scale, Size},
 };
+use wayfleet_config::Config;
 
-use crate::layout::{
+use crate::{layout::{
     animation::{AnimationController, AnimationHandle}, map::{Coordinate, Map}, privileged::Privileged,
-};
+}, state::OutputState};
 
 pub struct LayoutController {
     pub map: Map,
@@ -19,39 +20,39 @@ pub struct LayoutController {
 
 impl LayoutController {
     pub fn _new(
-        rows: usize,
-        columns: usize,
-        cell_height: i32,
-        cell_width: i32,
-        area: Rectangle<i32, Logical>,
+        config: Config
     ) -> Self {
         let animation = AnimationHandle(Arc::new(RwLock::new(AnimationController::new(Duration::from_millis(16)))));
 
-        Self {
-            map: Map::new(
-                rows,
-                columns,
-                cell_height,
-                cell_width,
-                Point::new(0, area.size.h),
-                animation.clone()
-            ),
-            privileged: Privileged::new(area, animation.clone()),
-            space: Space::default(),
-            animation
-        }
+        todo!()
+
+        // Self {
+        //     map: Map::new(
+        //         rows,
+        //         columns,
+        //         cell_height,
+        //         cell_width,
+        //         Point::new(0, area.size.h),
+        //         animation.clone()
+        //     ),
+        //     privileged: Privileged::new(area, animation.clone()),
+        //     space: Space::default(),
+        //     animation
+        // }
     }
 
     pub fn new(
-        LayoutSettings {
-            rows,
-            columns,
-            cell_height,
-            cell_width,
-            area,
-        }: LayoutSettings,
+        config: Config,
+        output_state: &OutputState,
     ) -> Self {
-        Self::_new(rows, columns, cell_height, cell_width, area)
+        let animation = AnimationHandle(Arc::new(RwLock::new(AnimationController::new(Duration::from_millis(16)))));
+
+        let rect = Rectangle::new(Point::new(0, 0), Size::new(output_state.size.to_logical(output_state.scale_factor).w, output_state.size.to_logical(output_state.scale_factor).h / 3));
+        let privileged = Privileged::new(rect, animation.clone());
+
+        let map = Map::new(config.map, animation.clone(), &output_state, Point::new(100, rect.size.h));
+
+        Self { map, privileged, space: Space::default(), animation }
     }
 
     pub fn insert_generic(&mut self, window: Window) -> InsertResult {

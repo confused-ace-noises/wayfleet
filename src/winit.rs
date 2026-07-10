@@ -5,21 +5,24 @@ use smithay::{
         renderer::{
             damage::OutputDamageTracker, element::{AsRenderElements, surface::WaylandSurfaceRenderElement}, gles::GlesRenderer,
         }, winit::{self, WinitEvent},
-    }, output::{Mode, Output, PhysicalProperties, Subpixel}, reexports::calloop::EventLoop, utils::{Rectangle, Scale, Transform},
+    }, output::{Mode, Output, PhysicalProperties, Subpixel}, reexports::{calloop::EventLoop, wayland_server::Display}, utils::{Rectangle, Scale, Transform},
 };
+use wayfleet_config::Config;
 
-use crate::state::State;
+use crate::state::{OutputState, State};
 
 pub fn init_winit(
-    event_loop: &mut EventLoop<State>,
-    state: &mut State,
-) -> Result<(), Box<dyn std::error::Error>> {
+    event_loop: &mut EventLoop<'static, State>,
+    display: Display<State>,
+    config: Config,
+) -> Result<State, Box<dyn std::error::Error>> {
     let (mut backend, winit) = winit::init()?;
 
-    // dbg!(backend.window_size().to_logical(backend.scale_factor() as i32));
+    let size = backend.window_size();
+    let scale_factor = backend.scale_factor() as i32;
 
     let mode = Mode {
-        size: backend.window_size(),
+        size,
         refresh: 60_000,
     };
 
@@ -33,6 +36,17 @@ pub fn init_winit(
             serial_number: "Unknown".into(),
         },
     );
+
+    let output_state = OutputState {
+        size,
+        scale_factor,
+        changed: false,
+    };
+
+    println!("{:?}", output_state);
+
+    let mut state = State::new(event_loop, display, config, output_state);
+
     let _global = output.create_global::<State>(&state.display);
     output.change_current_state(
         Some(mode),
@@ -51,6 +65,8 @@ pub fn init_winit(
         .insert_source(winit, move |event, _, state| {
             match event {
                 WinitEvent::Resized { size, .. } => {
+                    
+
                     output.change_current_state(
                         Some(Mode {
                             size,
@@ -111,5 +127,5 @@ pub fn init_winit(
             };
         })?;
 
-    Ok(())
+    Ok(state)
 }

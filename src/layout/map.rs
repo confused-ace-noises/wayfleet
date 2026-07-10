@@ -9,14 +9,15 @@ use smithay::{
     utils::{Logical, Point, Rectangle, Size},
     wayland::seat::WaylandFocus,
 };
+use wayfleet_config::{amount::Amount, size::Spaces};
 
-use crate::layout::{
+use crate::{layout::{
     animation::{
         Animation, AnimationBase, AnimationHandle, Easing, InfoType, MoveAnimation, ResizeAnimation,
     },
     controller::{LayoutController, ResizeType},
     map::TileType::Regular,
-};
+}, state::OutputState};
 
 #[derive(Debug, Clone)]
 pub struct Tile {
@@ -203,35 +204,101 @@ pub struct Map {
     pub columns: usize,
     pub cell_height: i32,
     pub cell_width: i32,
+    pub spaces: Spaces,
     pub offset: Point<i32, Logical>,
     pub animation: AnimationHandle,
 }
 
 impl Map {
     pub fn new(
-        rows: usize,
-        columns: usize,
-        cell_height: i32,
-        cell_width: i32,
-        offset: Point<i32, Logical>,
+        config: wayfleet_config::Map,
         animation: AnimationHandle,
+        OutputState { size: output_size, scale_factor, ..}: &OutputState,
+        priv_offset: Point<i32, Logical>
     ) -> Self {
-        // TODO tmp comment!!
+        let wayfleet_config::Map { size, cells, spaces, margins } = config;
+
+        let mut output_size = output_size.to_logical(*scale_factor);
+
+        output_size.h -= priv_offset.y;
+
+        let spaces = spaces.unwrap_or_else(|| Spaces { horizontal: 0, vertical: 0} );
+
+        let (rows, columns) = match size {
+            wayfleet_config::size::Size::Specified(wayfleet_config::size::Grid { rows, columns }) => {
+                let first = if let Amount::Specified(rows) = rows {
+                    rows
+                } else {
+                    (output_size.h + spaces.vertical as i32) / (cells.unwrap_ref().height.unwrap() + spaces.vertical.max(1) as i32)
+                };
+
+                let second = if let Amount::Specified(cols) = columns {
+                    cols
+                } else {
+                    ((output_size.w + spaces.horizontal as i32) as f64 / (cells.unwrap_ref().width.unwrap() + spaces.horizontal.max(1) as i32)as f64) as i32
+                };
+                
+                (
+                    first,
+                    second
+                )
+            },
+            wayfleet_config::size::Size::Auto => {
+                (
+                    (output_size.h + spaces.vertical as i32) / (cells.unwrap_ref().height.unwrap() + spaces.vertical.max(1) as i32),
+                    ((output_size.w + spaces.horizontal as i32) as f64 / (cells.unwrap_ref().width.unwrap() + spaces.horizontal.max(1) as i32)as f64) as i32
+                )
+            },
+        };
+
+        let (cell_height, cell_width) = match cells {
+            wayfleet_config::size::Size::Specified(wayfleet_config::size::SizeRepr { height, width }) => {
+                let first = if let Amount::Specified(heigth) = height {
+                    heigth
+                } else {
+                    (output_size.h + spaces.vertical as i32) / rows - spaces.vertical.max(1) as i32
+                };
+
+                let second = if let Amount::Specified(width) = width {
+                    width
+                } else {
+                    (output_size.w + spaces.horizontal as i32) / columns - spaces.horizontal.max(1) as i32
+                };
+                
+                (
+                    first,
+                    second
+                )
+            },
+            wayfleet_config::size::Size::Auto => {
+                (
+                    (output_size.h + spaces.vertical as i32) / rows - spaces.vertical.max(1) as i32,
+                    (output_size.w + spaces.horizontal as i32) / columns - spaces.horizontal.max(1) as i32
+                )
+            },
+        };
+
         assert_ne!(rows, 0);
         assert_ne!(columns, 0);
         assert!(cell_height > 0);
         assert!(cell_width > 0);
 
-        Self {
+        let columns = columns as usize;
+        let rows = rows as usize;
+
+        // TODO: proper margins
+
+        dbg!(Self {
             map: vec![vec![None; columns]; rows],
             first_available: Some([0, 0].into()),
             rows,
             columns,
             cell_height,
             cell_width,
-            offset,
+            spaces,
+            offset: priv_offset,
             animation,
-        }
+        })
     }
 
     pub fn insert(&mut self, window: Window) -> Option<Coordinate> {
@@ -266,40 +333,24 @@ impl Map {
         direction: Direction,
         space: &mut Space<Window>,
     ) -> Option<bool> {
-        let ((g1, travel_1), (g2, travel_2)) = self.make_swap_groups(*position, direction)?;
-
-        let calculate_travel = |g: &Vec<&Tile>| {
-            g.iter()
-                .filter_map(|x| match x.tile_type {
-                    TileType::Leader { rows, cols, .. } => match direction {
-                        Direction::Up | Direction::Down => Some(rows+1),
-                        Direction::Left | Direction::Right => Some(cols+1),
-                    },
-                    Regular(_) => None,
-                })
-                .max()
-                // .unwrap()
-                .unwrap_or(1) // this can onluy happen on g2, and if g2 really does no have any members, just treat it like a move
-        };
-
-        let mut travel_1 = travel_1 as i32;
-        let mut travel_2 = travel_2 as i32;
+        let ((g1, mut travel_1), (g2, mut travel_2)) = self.make_swap_groups(*position, direction)?;
 
         match direction {
             Direction::Up   | Direction::Left  => travel_1 = -travel_1,
             Direction::Down | Direction::Right => travel_2 = -travel_2,
         }
 
-        let (dist_1, dist_2) = match direction {
-            Direction::Up | Direction::Down => (
-                Point::<_, Logical>::new(0, travel_1 * self.cell_height),
-                Point::<_, Logical>::new(0, travel_2 * self.cell_height),
-            ),
-            Direction::Left | Direction::Right => (
-                Point::<_, Logical>::new(travel_1 * self.cell_width, 0),
-                Point::<_, Logical>::new(travel_2 * self.cell_width, 0),
-            ),
-        };
+        
+        // let (dist_1, dist_2) = match direction {
+        //     Direction::Up | Direction::Down => (
+        //         Point::<_, Logical>::new(0, travel_1 * self.cell_height + (travel_1 - travel_1.signum()) * self.spaces.vertical as i32),
+        //         Point::<_, Logical>::new(0, travel_2 * self.cell_height + (travel_2 - travel_2.signum()) * self.spaces.vertical as i32),
+        //     ),
+        //     Direction::Left | Direction::Right => (
+        //         Point::<_, Logical>::new(travel_1 * self.cell_width + (travel_1 - travel_1.signum()) * self.spaces.horizontal as i32, 0),
+        //         Point::<_, Logical>::new(travel_2 * self.cell_width + (travel_2 - travel_2.signum()) * self.spaces.horizontal as i32, 0),
+        //     ),
+        // };
 
         let (travel_1, travel_2) = match direction {
             Direction::Up | Direction::Down => (
@@ -310,37 +361,23 @@ impl Map {
                 Coordinate { row: 0, column: travel_1 }, 
                 Coordinate { row: 0, column: travel_2 },
             ),
-        };
+        }; 
 
-
-        let mut anim_lock = self.animation.write().unwrap();
-
-        let mut anim = |result, window| {
-            anim_lock.schedule(Animation::Move(AnimationBase::new(
-                result,
-                window,
-                space,
-                Duration::from_millis(150),
-                Easing::EaseInOut,
-                0,
-            )));
-        };
-
-        println!("g1: {:#?}", g1);
+        // println!("g1: {:#?}", g1);
         
-        for Tile { window, .. } in g1.iter() {
-            println!("g1!");
-            anim(InfoType::Delta(dist_1), window.clone());
-        }
+        // for Tile { window, .. } in g1.iter() {
+        //     println!("g1!");
+        //     anim(InfoType::Delta(dist_1), window.clone());
+        // }
         
-        println!("g2: {:#?}", g2);
+        // println!("g2: {:#?}", g2);
 
-        for Tile { window, .. } in g2.iter() {
-            println!("g2!");
-            anim(InfoType::Delta(dist_2), window.clone());
-        }
+        // for Tile { window, .. } in g2.iter() {
+        //     println!("g2!");
+        //     anim(InfoType::Delta(dist_2), window.clone());
+        // }
 
-        drop(anim_lock);
+        // drop(anim_lock);
 
         let g1 = g1.into_iter().cloned().collect::<Vec<_>>();
         let g2 = g2.into_iter().cloned().collect::<Vec<_>>();
@@ -353,6 +390,20 @@ impl Map {
             self[coord] = None;
         }
 
+        let handle = self.animation.clone();
+        let mut anim_lock = handle.write().unwrap();
+
+        let mut anim = |result, window| {
+            anim_lock.schedule(Animation::Move(AnimationBase::new(
+                result,
+                window,
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+        };
+
         println!("has cleared? {:#?}", self.map);
         
         for mut tile in g1 {
@@ -362,9 +413,10 @@ impl Map {
 
             *coord = cloned;
 
+            anim(InfoType::Final(self.get_position(cloned)), tile.window.clone());
+            
             self[&cloned] = Some(tile);
     
-
             unsafe { self.repoint_regualr_tiles(cloned); }
         }
 
@@ -377,80 +429,16 @@ impl Map {
 
             *coord = cloned;
 
+            anim(InfoType::Final(self.get_position(cloned)), tile.window.clone());
+
             self[&cloned] = Some(tile);
     
-
             unsafe { self.repoint_regualr_tiles(cloned); }
         }
 
         println!("performed swap: {:#?}", self.map);
 
         Some(true)
-    }
-
-    fn swap_build_groups(
-        &self,
-        start: Coordinate,
-        direction: Direction,
-    ) -> Option<(Vec<&Tile>, Vec<&Tile>)> {
-        let step: Coordinate = start.step_towards(direction);
-        
-        // check if we're going outside boundries
-        let _ = self.map.get(step.row as usize)?.get(step.column as usize)?;
-
-        println!("passed out of bounds check");
-
-        let mut g1: Vec<&Tile> = Vec::new();
-        let mut g2: Vec<&Tile> = Vec::new();
-
-        let current = self[&start].as_ref()?;
-        let leader = self.get_leader(current);
-
-        // g1.push(leader);
-
-        let mut no_new_tiles = false;
-        let mut comparison_direction = direction;
-
-        // group being expanded right now
-        let mut current_group = &mut g1;
-        let mut tmp = &mut g2;
-
-        let mut to_search = vec![leader];
-        // let mut found = vec![];
-
-        while !no_new_tiles {
-            dbg!(&current_group);
-            dbg!(&tmp);
-
-            no_new_tiles = true;
-            let searching = mem::take(&mut to_search);
-
-            println!("searching: {:#?}", searching);
-
-            for searched in searching {
-                println!("loop");
-                if !current_group.contains(&searched) {
-                    println!("pushed something");
-                    current_group.push(searched);
-                    no_new_tiles = false;
-                }
-
-                let unique_leaders = self.get_unique_leaders(
-                        dbg!(searched.find_adjacent(self, &comparison_direction)),
-                    );
-
-                println!("unique_leaders: {:#?}", unique_leaders);
-
-                to_search.extend(
-                    unique_leaders
-                );
-            }
-
-            mem::swap(&mut current_group, &mut tmp); // swap the *pointers*
-            comparison_direction = !comparison_direction; // change comparison direction so that g1 targets g2 and vice versa
-        }
-
-        Some((g1, g2))
     }
 
     fn make_swap_groups(
@@ -473,7 +461,6 @@ impl Map {
         let mut pivot_g2 = dbg!(pivot_g1.step_towards(direction));
 
         let calc_dist = |pivot: &Coordinate, tile: &Tile, current_direction: Direction, is_starting_dir: bool| {
-            // TODO: figure out why current_direction shouldn't be flipped
             let farthest = tile.find_outskirts(self, &current_direction)[0];
             
             println!("tile : {:?} has farthest: {farthest:?}", tile.tile_type);
@@ -494,7 +481,6 @@ impl Map {
         let calculate_travel = |g: &Vec<&Tile>, pivot: &Coordinate, current_direction: Direction, is_starting_dir: bool| {
             let dist = g.iter()
                 .filter_map(|x| match x.tile_type {
-                    // TODO; fix distance calculation to fit windows away from the pivot line
                     TileType::Leader { .. } => {                        
                        Some(calc_dist(pivot, x, current_direction, is_starting_dir))
                     },
@@ -656,11 +642,17 @@ impl Map {
             let mut anim_delta: Size<i32, Logical> = Size::new(0, 0);
 
             if let Direction::Up | Direction::Down = direction {
+                if rows == 1 {
+                    return None;
+                }
                 rows -= 1;
-                anim_delta.h += -self.cell_height;
+                anim_delta.h += -self.cell_height - self.spaces.vertical as i32;
             } else {
+                if cols == 1 {
+                    return None;
+                }
                 cols -= 1;
-                anim_delta.w += -self.cell_width;
+                anim_delta.w += -self.cell_width - self.spaces.horizontal as i32;
             }
 
             let start = Instant::now();
@@ -679,7 +671,6 @@ impl Map {
                         2,
                     ),
                 ));
-                // space.relocate_element(&tile.window, self.get_position(new_coord));
             }
             // let start = Instant::now();
             anim_lock.schedule(Animation::Resize(
@@ -735,6 +726,8 @@ impl Map {
         let cell_width = self.cell_width;
         let cell_height = self.cell_height;
 
+        let spaces = self.spaces;
+
         let Tile {
             tile_type: TileType::Leader { rows, cols, .. },
             ..
@@ -746,10 +739,10 @@ impl Map {
         let anim_delta: Size<i32, Logical>;
 
         if let Direction::Down | Direction::Up = direction {
-            anim_delta = Size::new(0, cell_height);
+            anim_delta = Size::new(0, cell_height + spaces.vertical as i32);
             *rows += 1;
         } else {
-            anim_delta = Size::new(cell_width, 0);
+            anim_delta = Size::new(cell_width + spaces.horizontal as i32, 0);
             *cols += 1;
         }
 
@@ -782,7 +775,7 @@ impl Map {
         direction: Direction,
     ) -> Option<bool> {
         let x @ Tile {
-            tile_type: TileType::Leader { rows, cols, coord },
+            tile_type: TileType::Leader { coord, .. },
             ..
         } = self.get_leader(self[coord].as_ref()?).clone()
         else {
@@ -1163,17 +1156,17 @@ impl Map {
 
     pub fn get_position(&self, Coordinate { row, column }: Coordinate) -> Point<i32, Logical> {
         Point::new(
-            column * self.cell_width + self.offset.x,
-            row * self.cell_height + self.offset.y,
-        )
+            column * self.cell_width + (column-1) * self.spaces.horizontal as i32 + self.offset.x,
+            row * self.cell_height + (row - 1) * self.spaces.vertical as i32 + self.offset.y,
+        ) + Point::new(1, 1)
     }
 
     pub fn get_size(&self) -> Size<i32, Logical> {
-        Size::new(self.cell_width, self.cell_width)
+        Size::new(self.cell_width, self.cell_height)
     }
 
     pub fn total_width(&self) -> i32 {
-        self.cell_width * self.columns as i32
+        self.cell_width * self.columns as i32 + (self.columns as i32 -1) * self.spaces.horizontal as i32
     }
 }
 
@@ -1262,8 +1255,6 @@ impl Coordinate {
     }
 
     pub fn step_several(&self, direction: Direction, n: i32) -> Self {
-        let n = n as i32;
-        
         *self
             + Into::<Coordinate>::into(match direction {
                 Direction::Up => (-n, 0),
