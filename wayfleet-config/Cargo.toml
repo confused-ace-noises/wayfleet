@@ -4,8 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-serde = { version = "1.0.228", features = ["derive"] }
-serde-untagged = "0.1.9"
-toml = { version = "1.1.2+spec-1.1.0", features = ["serde"] }
 derive_more.workspace = true
 miette = { version = "7.6.0", features = ["fancy"] }
+knus = "3.4.0"

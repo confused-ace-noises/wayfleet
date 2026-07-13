@@ -3,9 +3,9 @@ use std::time::Duration;
 use smithay::{
     backend::{
         renderer::{
-            damage::OutputDamageTracker, element::{AsRenderElements, surface::WaylandSurfaceRenderElement}, gles::GlesRenderer,
+            damage::OutputDamageTracker, element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer,
         }, winit::{self, WinitEvent},
-    }, output::{Mode, Output, PhysicalProperties, Subpixel}, reexports::{calloop::EventLoop, wayland_server::Display}, utils::{Rectangle, Scale, Transform},
+    }, output::{Mode, Output, PhysicalProperties, Subpixel}, reexports::{calloop::EventLoop, wayland_server::Display}, utils::Transform,
 };
 use wayfleet_config::Config;
 

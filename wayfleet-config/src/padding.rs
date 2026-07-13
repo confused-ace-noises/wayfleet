@@ -1,16 +1,16 @@
-use serde::Deserialize;
+use knus::Decode;
 
-#[derive(Debug, Default, Deserialize)]
-pub struct Margins {
-    #[serde(default)]
-    pub left: u32,
-    
-    #[serde(default)]
-    pub right: u32,
-    
-    #[serde(default)]
-    pub top: u32,
-    
-    #[serde(default)]
-    pub down: u32
+#[derive(Debug, Default, Decode)]
+pub struct Padding {
+    #[knus(child, unwrap(argument), default)]
+    pub left: i32,
+
+    #[knus(child, unwrap(argument), default)]
+    pub right: i32,
+
+    #[knus(child, unwrap(argument), default)]
+    pub top: i32,
+
+    #[knus(child, unwrap(argument), default)]
+    pub down: i32,
 }

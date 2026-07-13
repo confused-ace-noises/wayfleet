@@ -7,33 +7,14 @@ pub enum ConfigError {
     #[diagnostic(code(config::io))]
     Io(std::io::Error),
 
-    #[display("failed to parse config: {message}")]
-    #[diagnostic(code(config::parse))]
+    #[display("failed to parse config")]
+    #[diagnostic(transparent)]
     #[from(ignore)]
-    Parse {
-        message: String,
-        #[source_code]
-        src: NamedSource<String>,
-        #[label("{message}")]
-        span: SourceSpan,
-    },
+    Parse(knus::Error),
 
     #[display("failed to validate config")]
     #[diagnostic(transparent)]
     Validation(ValidationError),
-}
-
-impl ConfigError {
-    pub(crate) fn from_serde(error: toml::de::Error, src: NamedSource<String>) -> Self {
-        let message = error.message();
-        let span = error.span().unwrap_or(0..0);
-
-        ConfigError::Parse {
-            message: message.to_string(),
-            src,
-            span: span.into(),
-        }
-    }
 }
 
 #[derive(Debug, Error, Display, Diagnostic)]

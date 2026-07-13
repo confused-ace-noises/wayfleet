@@ -1,13 +1,11 @@
 use std::{
-    collections::HashSet, iter, mem, ops::{Deref, DerefMut, Index, IndexMut, Not, Range}, time::{Duration, Instant},
+    mem, ops::{Deref, DerefMut, Index, IndexMut, Not}, time::{Duration, Instant},
 };
 
 use derive_more::{Add, Sub};
 use smithay::{
     desktop::{Space, Window},
-    reexports::{rustix::net::ipproto::TP, winit::platform::x11::ffi::DontPreferBlanking},
     utils::{Logical, Point, Rectangle, Size},
-    wayland::seat::WaylandFocus,
 };
 use wayfleet_config::{amount::Amount, size::Spaces};
 
@@ -15,7 +13,6 @@ use crate::{layout::{
     animation::{
         Animation, AnimationBase, AnimationHandle, Easing, InfoType, MoveAnimation, ResizeAnimation,
     },
-    controller::{LayoutController, ResizeType},
     map::TileType::Regular,
 }, state::OutputState};
 
@@ -209,18 +206,20 @@ pub struct Map {
     pub animation: AnimationHandle,
 }
 
+type SwapGroup<'a> = (Vec<&'a Tile>, i32);
+
 impl Map {
     pub fn new(
         config: wayfleet_config::Map,
         animation: AnimationHandle,
         OutputState { size: output_size, scale_factor, ..}: &OutputState,
-        priv_offset: Point<i32, Logical>
+        privileged_offset: i32
     ) -> Self {
         let wayfleet_config::Map { size, cells, spaces, margins } = config;
 
         let mut output_size = output_size.to_logical(*scale_factor);
 
-        output_size.h -= priv_offset.y;
+        output_size.h -= privileged_offset;
 
         let spaces = spaces.unwrap_or_else(|| Spaces { horizontal: 0, vertical: 0} );
 
@@ -296,7 +295,7 @@ impl Map {
             cell_height,
             cell_width,
             spaces,
-            offset: priv_offset,
+            offset: Point::new(0, privileged_offset),
             animation,
         })
     }
@@ -340,18 +339,6 @@ impl Map {
             Direction::Down | Direction::Right => travel_2 = -travel_2,
         }
 
-        
-        // let (dist_1, dist_2) = match direction {
-        //     Direction::Up | Direction::Down => (
-        //         Point::<_, Logical>::new(0, travel_1 * self.cell_height + (travel_1 - travel_1.signum()) * self.spaces.vertical as i32),
-        //         Point::<_, Logical>::new(0, travel_2 * self.cell_height + (travel_2 - travel_2.signum()) * self.spaces.vertical as i32),
-        //     ),
-        //     Direction::Left | Direction::Right => (
-        //         Point::<_, Logical>::new(travel_1 * self.cell_width + (travel_1 - travel_1.signum()) * self.spaces.horizontal as i32, 0),
-        //         Point::<_, Logical>::new(travel_2 * self.cell_width + (travel_2 - travel_2.signum()) * self.spaces.horizontal as i32, 0),
-        //     ),
-        // };
-
         let (travel_1, travel_2) = match direction {
             Direction::Up | Direction::Down => (
                 Coordinate { row: travel_1, column: 0 }, 
@@ -362,22 +349,6 @@ impl Map {
                 Coordinate { row: 0, column: travel_2 },
             ),
         }; 
-
-        // println!("g1: {:#?}", g1);
-        
-        // for Tile { window, .. } in g1.iter() {
-        //     println!("g1!");
-        //     anim(InfoType::Delta(dist_1), window.clone());
-        // }
-        
-        // println!("g2: {:#?}", g2);
-
-        // for Tile { window, .. } in g2.iter() {
-        //     println!("g2!");
-        //     anim(InfoType::Delta(dist_2), window.clone());
-        // }
-
-        // drop(anim_lock);
 
         let g1 = g1.into_iter().cloned().collect::<Vec<_>>();
         let g2 = g2.into_iter().cloned().collect::<Vec<_>>();
@@ -441,11 +412,11 @@ impl Map {
         Some(true)
     }
 
-    fn make_swap_groups(
-        &self,
+    fn make_swap_groups<'a>(
+        &'a self,
         start: Coordinate,
         direction: Direction,
-    ) -> Option<((Vec<&Tile>, i32), (Vec<&Tile>, i32))> {
+    ) -> Option<(SwapGroup<'a>, SwapGroup<'a>)> {
         
         let step: Coordinate = start.step_towards(direction);
         
@@ -1016,19 +987,28 @@ impl Map {
         }
     }
 
-    // pub fn remove(&mut self, position: &Coordinate) -> Option<Vec<Tile>> {
-    //     let mut res = Vec::new();
-    //     let first = mem::take(&mut self[position])?;
+    pub fn remove(&mut self, position: &Coordinate, space: &mut Space<Window>) -> Option<Vec<Tile>> {
+        let tile = self[position].as_ref()?;
+        let Tile { tile_type: TileType::Leader { rows, cols, .. }, ref window }: Tile = *self.get_leader(tile) else { unreachable!() };
 
-    //     let siblings = first.siblings.iter().filter_map(|x| self.remove_single(x));
-    //     res.extend(siblings);
-    //     res.push(first);
-    //     let push = res.swap_remove(0);
-    //     res.push(push);
+        space.unmap_elem(window);
 
-    //     Some(res)
-    // }
+        let mut vec = vec![];
 
+        for r in 0..=rows {
+            for c in 0..cols {
+                vec.push(mem::take(&mut self.map[r][c]))
+            }
+        }
+
+        if vec.iter().any(Option::is_none) {
+            None
+        } else {
+            Some(vec.into_iter().flatten().collect())   
+        }
+    }
+
+    #[allow(unused)]
     fn remove_single(&mut self, position: &Coordinate) -> Option<Tile> {
         mem::take(&mut self[position])
     }

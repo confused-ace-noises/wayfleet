@@ -1,9 +1,9 @@
 use std::{
-    cell::RefCell, collections::HashSet, sync::{Arc, RwLock}, time::{Duration, Instant},
+    sync::{Arc, RwLock}, time::Duration,
 };
 
 use smithay::{
-    desktop::{Space, Window}, utils::{Logical, Point, Rectangle, Scale, Size},
+    desktop::{Space, Window}, utils::{Logical, Point, Rectangle, Size},
 };
 use wayfleet_config::Config;
 
@@ -19,38 +19,15 @@ pub struct LayoutController {
 }
 
 impl LayoutController {
-    pub fn _new(
-        config: Config
-    ) -> Self {
-        let animation = AnimationHandle(Arc::new(RwLock::new(AnimationController::new(Duration::from_millis(16)))));
-
-        todo!()
-
-        // Self {
-        //     map: Map::new(
-        //         rows,
-        //         columns,
-        //         cell_height,
-        //         cell_width,
-        //         Point::new(0, area.size.h),
-        //         animation.clone()
-        //     ),
-        //     privileged: Privileged::new(area, animation.clone()),
-        //     space: Space::default(),
-        //     animation
-        // }
-    }
-
     pub fn new(
         config: Config,
         output_state: &OutputState,
     ) -> Self {
         let animation = AnimationHandle(Arc::new(RwLock::new(AnimationController::new(Duration::from_millis(16)))));
 
-        let rect = Rectangle::new(Point::new(0, 0), Size::new(output_state.size.to_logical(output_state.scale_factor).w, output_state.size.to_logical(output_state.scale_factor).h / 3));
-        let privileged = Privileged::new(rect, animation.clone());
+        let privileged = Privileged::new(config.privileged, output_state, animation.clone());
 
-        let map = Map::new(config.map, animation.clone(), &output_state, Point::new(100, rect.size.h));
+        let map = Map::new(config.map, animation.clone(), output_state, privileged.map_offset);
 
         Self { map, privileged, space: Space::default(), animation }
     }

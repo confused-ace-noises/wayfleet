@@ -1,10 +1,10 @@
 use std::{time::{Duration, Instant}};
 use miette::Result;
-use smithay::{reexports::{calloop::EventLoop, wayland_server::Display}, utils::{Point, Rectangle, Size}};
-use wayfleet::{layout::{controller::LayoutSettings, map::{Coordinate, Direction}}, state::State};
-use wayfleet_config::{Config, error::ConfigError};
+use smithay::reexports::{calloop::EventLoop, wayland_server::Display};
+use wayfleet::{layout::map::Direction, state::State};
+use wayfleet_config::Config;
 
-const CONFIG_FILE: &str = "config.toml";
+const CONFIG_FILE: &str = "config.kdl";
 
 fn main() -> Result<()> {
     let config = Config::parse(CONFIG_FILE)?;
@@ -18,7 +18,7 @@ fn main() -> Result<()> {
 
     let mut last_done = Instant::now();
     
-    let mut num = 0;
+    // let mut num = 0;
     let mut spawned = None;
     let mut did_mod = false;
     event_loop.run(None, &mut state, |state| {    

@@ -2,28 +2,78 @@ use std::time::Duration;
 
 use smithay::{
     desktop::{Space, Window},
-    input::keyboard::Layout,
-    utils::{Logical, Point, Rectangle},
+    utils::{Logical, Point, Rectangle, Size},
 };
+use wayfleet_config::{amount::Amount, size::SizeRepr};
 
-use crate::layout::{
-    animation::{Animation, AnimationBase, AnimationHandle, Easing, InfoType, MoveAnimation},
-    controller::{LayoutController, ResizeType},
-    map::Direction,
+use crate::{
+    layout::{
+        animation::{Animation, AnimationBase, AnimationHandle, Easing, InfoType, MoveAnimation},
+        controller::{LayoutController, ResizeType},
+        map::Direction,
+    },
+    state::OutputState,
 };
 
 pub struct Privileged {
     pub area: Rectangle<i32, Logical>,
     pub privileged: Vec<Vec<Window>>,
     pub animation: AnimationHandle,
+    pub map_offset: i32
 }
 
 impl Privileged {
-    pub fn new(area: Rectangle<i32, Logical>, animation: AnimationHandle) -> Self {
+    pub fn new(
+        wayfleet_config::Privileged {
+            size,
+            // TODO: add spaces
+            spaces,
+            padding: margins,
+        }: wayfleet_config::Privileged,
+        output: &OutputState,
+        animation: AnimationHandle,
+    ) -> Self {
+        let wayfleet_config::padding::Padding {
+            left,
+            right,
+            top,
+            down,
+        } = margins;
+
+        let output = output.logical_size();
+
+        let (mut height, mut width) = match size {
+            wayfleet_config::size::Size::Auto
+            | wayfleet_config::size::Size::Specified(SizeRepr {
+                height: Amount::Auto,
+                width: Amount::Auto,
+            }) => {
+                let h = output.h * 40 / 100;
+                let w = output.w;
+
+                (h, w)
+            }
+
+            wayfleet_config::size::Size::Specified(SizeRepr { height, width }) => (
+                height.unwrap_or_else(|| output.h * 40 / 100),
+                width.unwrap_or(output.w),
+            ),
+        };
+
+        let map_offset = height;
+
+        let point = Point::<_, Logical>::new(left, top);
+
+        height -= top + down;
+        width -= left + right;
+
+        let area = Rectangle::new(point, Size::new(width, height));
+
         Self {
             privileged: vec![],
             area,
             animation,
+            map_offset,
         }
     }
 
@@ -86,7 +136,12 @@ impl Privileged {
         }
     }
 
-    pub fn swap_window(&mut self, window: &Window, direction: Direction, space: &mut Space<Window>) {
+    pub fn swap_window(
+        &mut self,
+        window: &Window,
+        direction: Direction,
+        space: &mut Space<Window>,
+    ) {
         let Some((column_idx, idx)) = self.find_column(window) else {
             return;
         };
@@ -94,8 +149,12 @@ impl Privileged {
         self.swap((column_idx, idx), direction, space);
     }
 
-    pub fn swap(&mut self, (column_idx, idx): (usize, usize), direction: Direction, space: &mut Space<Window>) {
-
+    pub fn swap(
+        &mut self,
+        (column_idx, idx): (usize, usize),
+        direction: Direction,
+        space: &mut Space<Window>,
+    ) {
         let mut other_column = column_idx;
         let mut other_idx = idx;
 
@@ -162,7 +221,7 @@ impl Privileged {
                 Duration::from_millis(150),
                 Easing::EaseInOut,
                 0,
-            )));            
+            )));
 
             animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
                 InfoType::Final(win1_pos),

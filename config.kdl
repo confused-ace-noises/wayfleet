@@ -1,0 +1,17 @@
+map {
+    size {
+        rows 4
+        columns 6
+    }
+
+    cells "auto"
+
+    spaces { 
+        horizontal 10
+        vertical 10
+    }
+}
+
+privileged {
+    size "auto"
+}

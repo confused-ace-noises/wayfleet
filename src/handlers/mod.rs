@@ -56,7 +56,7 @@ impl WaylandDndGrabHandler for State {
     fn dnd_requested<S: smithay::input::dnd::Source>(
         &mut self,
         source: S,
-        icon: Option<WlSurface>,
+        _icon: Option<WlSurface>,
         seat: smithay::input::Seat<Self>,
         serial: smithay::utils::Serial,
         type_: smithay::input::dnd::GrabType,

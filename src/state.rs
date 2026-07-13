@@ -1,8 +1,8 @@
 use std::{ffi::OsString, sync::Arc, time::Instant};
 
 use smithay::{
-    desktop::{PopupManager, Space, Window}, input::{Seat, SeatState}, reexports::{
-        calloop::{self, EventLoop, Interest, LoopHandle, LoopSignal, generic::Generic},
+    desktop::{PopupManager, Window}, input::{Seat, SeatState}, reexports::{
+    calloop::{self, EventLoop, Interest, LoopHandle, LoopSignal, generic::Generic},
         wayland_server::{
             Display, DisplayHandle,
         },
@@ -15,7 +15,7 @@ use smithay::{
 };
 use wayfleet_config::Config;
 
-use crate::{handlers::ClientState, layout::controller::{LayoutController, LayoutSettings}};
+use crate::{handlers::ClientState, layout::controller::LayoutController};
 
 pub struct State {
     pub start_time: Instant,

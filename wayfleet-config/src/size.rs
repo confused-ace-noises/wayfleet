@@ -1,64 +1,68 @@
-use serde::{Deserialize, de};
-use serde_untagged::UntaggedEnumVisitor;
-use toml::Spanned;
+use knus::{Decode, DecodeScalar, errors::DecodeError, traits::ErrorSpan};
 
-use crate::amount::Amount;
+use crate::{Spanned, amount::Amount};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Decode)]
 pub struct Grid {
+    #[knus(child, unwrap(argument))]
     pub rows: Amount,
+    
+    #[knus(child, unwrap(argument))]
     pub columns: Amount,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct SizeRepr {
-    pub height: Amount, 
-    pub width: Amount
-}
-
-#[derive(Debug, Deserialize, Default, Copy, Clone)]
-pub struct Spaces {
-    pub horizontal: u32,
-    pub vertical: u32,
-}
-
-impl From<SpacesRecv> for Spaces {
-    fn from(SpacesRecv { horizontal, vertical }: SpacesRecv) -> Self {
+impl From<GridRecv> for Grid {
+    fn from(value: GridRecv) -> Self {
         Self {
-            horizontal: horizontal.into_inner().unwrap_or(0),
-            vertical: vertical.into_inner().unwrap_or(0)
+            rows: value.rows.value,
+            columns: value.columns.value,
         }
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Decode)]
 pub struct GridRecv {
+    #[knus(child, unwrap(argument))]
     pub rows: Spanned<Amount>,
+    
+    #[knus(child, unwrap(argument))]
     pub columns: Spanned<Amount>,
 }
 
-impl From<GridRecv> for Grid {
-    fn from(GridRecv { rows, columns }: GridRecv) -> Self {
-        Grid { rows: rows.into_inner(), columns: columns.into_inner() }
-    }
-}
+#[derive(Debug, Decode)]
+pub struct SizeRepr {
+    #[knus(child, unwrap(argument))]
+    pub height: Amount, 
 
-#[derive(Debug, Deserialize)]
-pub struct SizeReprRecv {
-    pub height: Spanned<Amount>, 
-    pub width: Spanned<Amount>
+    #[knus(child, unwrap(argument))]
+    pub width: Amount
 }
 
 impl From<SizeReprRecv> for SizeRepr {
-    fn from(SizeReprRecv { height, width }: SizeReprRecv) -> Self {
-        SizeRepr { height: height.into_inner(), width: width.into_inner() }
+    fn from(value: SizeReprRecv) -> Self {
+        Self {
+            height: value.height.value,
+            width: value.width.value,
+        }
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct SpacesRecv {
-    pub horizontal: Spanned<Option<u32>>,
-    pub vertical: Spanned<Option<u32>>,
+#[derive(Debug, Decode)]
+pub struct SizeReprRecv {
+    #[knus(child, unwrap(argument))]
+    pub height: Spanned<Amount>, 
+
+    #[knus(child, unwrap(argument))]
+    pub width: Spanned<Amount>
+}
+
+#[derive(Debug, Default, Copy, Clone, Decode)]
+pub struct Spaces {
+    #[knus(child, unwrap(argument))]
+    pub horizontal: u32,
+
+    #[knus(child, unwrap(argument))]
+    pub vertical: u32,
 }
 
 #[derive(Debug, Default)]
@@ -68,6 +72,42 @@ pub enum Size<T> {
     #[default]
     Auto,
 }
+
+impl<S: ErrorSpan, T: Decode<S>> Decode<S> for Size<T> {
+    fn decode_node(node: &knus::ast::SpannedNode<S>, ctx: &mut knus::decode::Context<S>) -> Result<Self, DecodeError<S>> {
+        if let Some(arg) = node.arguments.first() {
+            if node.arguments.len() > 1 {
+                ctx.emit_error(DecodeError::unexpected(
+                    node,
+                    "argument",
+                    "expected only a single `auto` argument",
+                ));
+            }
+
+            if node.children().next().is_some() {
+                ctx.emit_error(DecodeError::unexpected(
+                    node,
+                    "node",
+                    "cannot combine `auto` with children",
+                ));
+            }
+
+            let word: String = DecodeScalar::decode(arg, ctx)?;
+            if word != "auto" {
+                ctx.emit_error(DecodeError::unexpected(
+                    node,
+                    "value",
+                    format!("expected `auto`, found `{word}`"),
+                ));
+            }
+
+            return Ok(Size::Auto);
+        }
+
+        T::decode_node(node, ctx).map(Size::Specified)
+    }
+}
+
 
 impl<T> Size<T> {
     pub fn into<U: From<T>>(self) -> Size<U> {
@@ -98,27 +138,3 @@ impl<T> Size<T> {
         }
     }
 }
-
-impl<'de, T> Deserialize<'de> for Size<T> 
-where 
-    T: Deserialize<'de>
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        UntaggedEnumVisitor::new()
-            .map(|map| {
-                map.deserialize::<T>().map(Size::Specified)
-            })
-            .string(|string| match string {
-                "auto" => Ok(Size::Auto),
-                _ => Err(de::Error::invalid_value(
-                    de::Unexpected::Str(string),
-                    &r#"integer or "auto""#,
-                )),
-            })
-            .deserialize(deserializer)
-    }
-}
-
