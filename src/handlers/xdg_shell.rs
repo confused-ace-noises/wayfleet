@@ -17,9 +17,19 @@ impl XdgShellHandler for State {
         surface.send_configure();
 
         let window = Window::new_wayland_window(surface);
+        let old_window  = match &self.layout.focus {
+            crate::layout::controller::Focus::None => None,
+            crate::layout::controller::Focus::Map(window) => Some(window.clone()),
+            crate::layout::controller::Focus::Privileged(window) => Some(window.clone())  ,
+        };
         // dbg!(&window);
-        self.layout.insert_generic(window.clone());
-        self.set_kb_focus(&window);
+        self.layout.insert_by_focus(window.clone());
+        
+        if let Some(old) = old_window {
+            self.refocus(&old, &window);
+        } else {
+            self.set_kb_focus(&window);
+        }
     }
 
     fn new_popup(

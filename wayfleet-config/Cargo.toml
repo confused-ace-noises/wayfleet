@@ -7,3 +7,7 @@ edition.workspace = true
 derive_more.workspace = true
 miette = { version = "7.6.0", features = ["fancy"] }
 knus = "3.4.0"
+bitflags = "2.13.0"
+xkeysym = "0.2.1"
+xkbcommon = "0.9.0"
+smithay.workspace = true

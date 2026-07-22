@@ -3,6 +3,7 @@ use miette::{NamedSource, SourceSpan};
 
 use crate::{Spanned, amount::Amount, error::{ConfigError, ValidationError}, padding::Padding, size::{Grid, GridRecv, Size, SizeRepr, SizeReprRecv, Spaces}};
 
+#[derive(Debug)]
 pub struct Map {
     pub size: Size<Grid>,
     pub cells: Size<SizeRepr>,
@@ -26,7 +27,7 @@ pub(crate) struct MapSpanned {
 }
 
 impl MapSpanned {
-    pub fn into_map(self, src: NamedSource<String>) -> Result<Map, ConfigError> {
+    pub fn into_map(self, src: &NamedSource<String>) -> Result<Map, ConfigError> {
         let Self { size, cells, spaces, margins } = self;
 
         let mut loc1a = None::<SourceSpan>;
@@ -65,13 +66,13 @@ impl MapSpanned {
         }
 
         if let Some(loc1) = loc1a && let Some(loc2) = loc2a {
-            Err(ValidationError::MapValidationAll { src, loc1, loc2 })?
+            Err(ValidationError::MapValidationAll { src: src.clone(), loc1, loc2 })?
 
         } else if let Some(loc1) = loc1h && let Some(loc2) = loc2h {
-            Err(ValidationError::MapValidationRows { src, loc1, loc2 })?
+            Err(ValidationError::MapValidationRows { src: src.clone(), loc1, loc2 })?
         
         } else if let Some(loc1) = loc1w && let Some(loc2) = loc2w {
-            Err(ValidationError::MapValidationColumns { src, loc1, loc2 })?
+            Err(ValidationError::MapValidationColumns { src: src.clone(), loc1, loc2 })?
         
         } else {
             if loc2a.is_some() {
@@ -87,10 +88,10 @@ impl MapSpanned {
             }
     
             if let Some(loc1) = loc1a && let Some(loc2) = loc1h {
-                Err(ValidationError::MapValidationGeneric { src, loc1, loc2 })?
+                Err(ValidationError::MapValidationGeneric { src: src.clone(), loc1, loc2 })?
     
             } else if let Some(loc1) = loc1a && let Some(loc2) = loc1w {
-                Err(ValidationError::MapValidationGeneric { src, loc1, loc2 })?
+                Err(ValidationError::MapValidationGeneric { src: src.clone(), loc1, loc2 })?
             }
         } 
 

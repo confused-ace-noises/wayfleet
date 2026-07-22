@@ -7,6 +7,18 @@ members = [
 [workspace.dependencies]
 derive_more = { version = "2.1.1", features = ["full"] }
 
+[workspace.dependencies.smithay]
+git = "https://github.com/Smithay/smithay/"
+
+branch = "master"
+
+features = [
+    "backend_session",
+    "backend_winit",
+    "wayland_frontend",
+    "desktop",
+]
+
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
@@ -22,15 +34,5 @@ edition.workspace = true
 derive_more.workspace = true
 wayfleet-config.path = "wayfleet-config"
 miette = { version = "7.6.0", features = ["fancy"] }
-
-[dependencies.smithay]
-git = "https://github.com/Smithay/smithay/"
-
-branch = "master"
-
-features = [
-    "backend_session",
-    "backend_winit",
-    "wayland_frontend",
-    "desktop",
-]
+smithay.workspace = true
+nix = { version = "0.31.3", features = ["signal"] }

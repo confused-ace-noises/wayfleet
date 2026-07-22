@@ -1,0 +1,614 @@
+use std::time::Duration;
+
+use smithay::{
+    desktop::{Space, Window},
+    utils::{Logical, Point, Rectangle, Size},
+};
+use wayfleet_config::{amount::Amount, size::{SizeRepr, Spaces}};
+
+use crate::{
+    layout::{
+        animation::{
+            Animation, AnimationBase, AnimationHandle, Easing, InfoType, MoveAnimation,
+            ResizeAnimation,
+        },
+        controller::{LayoutController, ResizeType},
+        map::{coordinate::Direction, focus::ShiftFocusOutput},
+    },
+    state::OutputState,
+};
+
+#[derive(Debug)]
+pub struct Privileged {
+    pub area: Rectangle<i32, Logical>,
+    pub privileged: Vec<Vec<Window>>,
+    pub animation: AnimationHandle,
+    pub map_offset: i32,
+    pub focused: Option<(usize, usize)>,
+    pub spaces: Spaces,
+}
+
+impl Privileged {
+    pub fn new(
+        wayfleet_config::Privileged {
+            size,
+            spaces,
+            padding: margins,
+        }: &wayfleet_config::Privileged,
+        output: &OutputState,
+        animation: AnimationHandle,
+    ) -> Self {
+        let wayfleet_config::padding::Padding {
+            left,
+            right,
+            top,
+            down,
+        } = margins;
+
+        let output = output.logical_size();
+
+        let (mut height, mut width) = match size {
+            wayfleet_config::size::Size::Auto
+            | wayfleet_config::size::Size::Specified(SizeRepr {
+                height: Amount::Auto,
+                width: Amount::Auto,
+            }) => {
+                let h = output.h * 40 / 100;
+                let w = output.w;
+
+                (h, w)
+            }
+
+            wayfleet_config::size::Size::Specified(SizeRepr { height, width }) => (
+                height.unwrap_or_else(|| output.h * 40 / 100),
+                width.unwrap_or(output.w),
+            ),
+        };
+
+        let map_offset = height;
+
+        let point = Point::<_, Logical>::new(*left, *top);
+
+        height -= top + down;
+        width -= left + right;
+
+        let area = Rectangle::new(point, Size::new(width, height));
+
+        let spaces = spaces.unwrap_or_else(|| Spaces { horizontal: 0, vertical: 0 });
+
+        Self {
+            privileged: vec![],
+            area,
+            animation,
+            map_offset,
+            focused: None,
+            spaces
+        }
+    }
+
+    pub fn push_laterally(
+        &mut self,
+        (column_idx, idx): (usize, usize),
+        direction: Direction,
+        space: &mut Space<Window>,
+    ) -> bool {
+        let (Direction::Left | Direction::Right) = direction else {
+            unimplemented!("not lateral movement")
+        };
+
+        if self.privileged[column_idx].len() == 1 {
+            if column_idx == 0 && direction == Direction::Left {
+                // would go out of bounds
+                return false;
+            } else if column_idx == self.privileged.len() - 1 && direction == Direction::Right {
+                // would similarly go out of bounds
+                return false;
+            }
+
+            // lone window, needs to be absorbed into another column
+            let new_column_idx = match direction {
+                Direction::Left => column_idx - 1,
+                Direction::Right => column_idx,
+                _ => unreachable!(),
+            };
+
+            let removed_window = self.privileged.remove(column_idx).remove(0);
+
+            let new_column = &self.privileged[new_column_idx];
+
+            let height = self.area.size.h / (new_column.len() + 1) as i32;
+            self.redo_height(space, -height, new_column_idx);
+            self.redo_widths(space, removed_window.geometry().size.w);
+
+            let new_column = &mut self.privileged[new_column_idx];
+
+            new_column.push(removed_window.clone());
+            let mut size = new_column[0].geometry().size;
+
+            size.h = height;
+
+            let mut anim = self.animation.write().unwrap();
+
+            let second_to_last = new_column.iter().rev().nth(1).unwrap();
+
+            let mut new_pos = space.element_location(second_to_last).unwrap();
+            let second_to_last_h = second_to_last.geometry().size.h;
+
+            new_pos.y += second_to_last_h + 1;
+
+            anim.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                InfoType::Final(new_pos),
+                removed_window.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+
+            anim.schedule(Animation::Resize(AnimationBase::<ResizeAnimation>::new(
+                InfoType::Final(size),
+                removed_window.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+
+            true
+        } else {
+            // window needs to be popped out of its column
+
+            let new_column = match direction {
+                Direction::Left => column_idx,
+                Direction::Right => column_idx + 1,
+                _ => unreachable!(),
+            };
+
+            let removed_window = self.privileged[column_idx].remove(idx);
+
+            let size = removed_window.geometry().size;
+
+            self.redo_height(space, size.h, column_idx);
+            self.redo_widths(space, -size.w);
+            let mut anim = self.animation.write().unwrap();
+
+            let current_pos = space.element_location(&removed_window).unwrap();
+
+            anim.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                InfoType::Delta(Point::new(size.w, -current_pos.y)),
+                removed_window.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+
+            anim.schedule(Animation::Resize(AnimationBase::<ResizeAnimation>::new(
+                InfoType::Final(Size::new(size.w, self.area.size.h)),
+                removed_window.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+
+            for col in (new_column + 1)..self.privileged.len() {
+                let column = &self.privileged[col];
+
+                for window in column {
+                    anim.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                        InfoType::Delta(Point::new(size.w, 0)),
+                        window.clone(),
+                        space,
+                        Duration::from_millis(150),
+                        Easing::EaseInOut,
+                        0,
+                    )));
+                }
+            }
+
+            self.privileged.insert(new_column, vec![removed_window]);
+            true
+        }
+    }
+
+    pub fn insert(&mut self, window: Window, space: &mut Space<Window>) -> Point<i32, Logical> {
+        let mut size = self.area.size;
+
+        size.w /= self.privileged.len() as i32 + 1;
+
+        self.redo_widths(space, -(size.w + self.spaces.horizontal as i32));
+        self.privileged.push(vec![window.clone()]);
+
+        // we dont animate here because the resize needs to be instanteneous
+        LayoutController::resize(&window, ResizeType::Both(size));
+
+        Point::new(self.area.size.w - (size.w /*+ (self.spaces.horizontal as i32 * (self.privileged.len()).clamp(0, 1) as i32)*/), 0)
+    }
+
+    /// AFTER remove
+    /// BEFORE add
+    pub fn redo_widths(&self, space: &mut Space<Window>, available_width: i32) {
+        let columns = self.privileged.len() as i32;
+
+        if columns == 0 {
+            return;
+        }
+
+        let single_width_delta = available_width / (columns);
+
+        let mut lock = self.animation.write().unwrap();
+        for (n_col, column) in self.privileged.iter().enumerate() {
+            for window in column.iter() {
+                // this awful dance of signs is due to the fact that Size::new checks for negative numbers
+                // and panics if they're negative, so we pass it it in as positive and then flip it if necessary
+                let mut size = Size::new(single_width_delta * single_width_delta.signum(), 0);
+                
+                if single_width_delta.signum() == -1 {
+                    size.w *= -1; 
+                }
+
+                println!("redoing widths, size: {size:?}");
+
+                lock.schedule(
+                    Animation::Resize(
+                        AnimationBase::new(InfoType::Delta(size), window.clone(), space, Duration::from_millis(2000), Easing::EaseInOut, 0)
+                    )
+                );
+
+                let mut pos = space
+                    .element_location(window)
+                    .expect("well this shouldn't happen");
+                pos.x += single_width_delta * n_col as i32;
+                space.relocate_element(window, pos);
+            }
+        }
+    }
+
+    /// AFTER remove
+    /// BEFORE add
+    pub fn redo_height(&self, space: &mut Space<Window>, gained_height: i32, column_idx: usize) {
+        let column = &self.privileged[column_idx];
+
+        if column.is_empty() {
+            return;
+        }
+
+        let delta = gained_height / column.len() as i32;
+
+        let mut lock = self.animation.write().unwrap();
+        for (idx, window) in column.iter().enumerate() {
+            // this awful dance of signs is due to the fact that Size::new checks for negative numbers
+            // and panics if they're negative, so we pass it it in as positive and then flip it if necessary
+            let mut size = Size::new(0, delta * delta.signum());
+            
+            if delta.signum() == -1 {
+                size.h *= -1; 
+            }
+
+            lock.schedule(
+                Animation::Resize(
+                    AnimationBase::new(InfoType::Delta(size), window.clone(), space, Duration::from_millis(150), Easing::EaseInOut, 0)
+                )
+            );
+
+            let mut pos = space
+                .element_location(window)
+                .expect("well this shouldn't happen... if it did, report me! ");
+            pos.y += delta * idx as i32;
+            space.relocate_element(window, pos);
+        }
+    }
+
+    pub fn swap_window(
+        &mut self,
+        window: &Window,
+        direction: Direction,
+        space: &mut Space<Window>,
+    ) {
+        let Some((column_idx, idx)) = self.find_position(window) else {
+            return;
+        };
+
+        self.swap((column_idx, idx), direction, space);
+    }
+
+    pub fn swap(
+        &mut self,
+        (column_idx, idx): (usize, usize),
+        direction: Direction,
+        space: &mut Space<Window>,
+    ) {
+        let mut other_column = column_idx;
+        let mut other_idx = idx;
+
+        match direction {
+            Direction::Up => other_idx -= 1,
+            Direction::Down => other_idx += 1,
+            Direction::Left => other_column -= 1,
+            Direction::Right => other_column += 1,
+        }
+
+        if column_idx != other_column {
+            // swap columns
+            let [col1, col2] = self
+                .privileged
+                .get_disjoint_mut([column_idx, other_column])
+                .unwrap();
+
+            let reference1 = space.element_location(&col1[0]).unwrap();
+            let reference2 = space.element_location(&col2[0]).unwrap();
+            let mut animation = self.animation.write().unwrap();
+
+            for window in col1.iter() {
+                let point = dbg!(space.element_location(window).unwrap());
+
+                animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                    InfoType::Final(Point::new(reference2.x, point.y)),
+                    window.clone(),
+                    space,
+                    Duration::from_millis(150),
+                    Easing::Linear,
+                    0,
+                )));
+            }
+
+            for window in col2.iter() {
+                let point = dbg!(space.element_location(window).unwrap());
+
+                animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                    InfoType::Final(Point::new(reference1.x, point.y)),
+                    window.clone(),
+                    space,
+                    Duration::from_millis(150),
+                    Easing::Linear,
+                    0,
+                )));
+            }
+
+            self.privileged.swap(column_idx, other_column);
+        } else {
+            // swap windows within column
+            let column = &mut self.privileged[column_idx];
+            let win1 = column.get(idx).unwrap();
+            let win2 = column.get(other_idx).unwrap();
+
+            let win1_pos = space.element_location(win1).unwrap();
+            let win2_pos = space.element_location(win2).unwrap();
+
+            let mut animation = self.animation.write().unwrap();
+
+            animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                InfoType::Final(win2_pos),
+                win1.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+
+            animation.schedule(Animation::Move(AnimationBase::<MoveAnimation>::new(
+                InfoType::Final(win1_pos),
+                win2.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                0,
+            )));
+
+            column.swap(idx, other_idx);
+        }
+    }
+
+    pub fn find_position(&self, searching: &Window) -> Option<(usize, usize)> {
+        self
+            .privileged
+            .iter()
+            .enumerate()
+            .find_map(|(col_idx, column)| {
+                column.iter().enumerate().find_map(|(win_idx, window)| {
+                    (*window == *searching).then_some(Some((col_idx, win_idx)))
+                })
+            })
+            .flatten()
+    }
+
+    pub fn radial_search<'a>(&'a self, searching: &Window) -> Option<&'a Window> {
+        let (column_idx, idx) = self.find_position(searching)?;
+
+        let current_column = &self.privileged[column_idx];
+
+        if idx < current_column.len() - 1 {
+            // select the window in the same column, under
+            Some(&current_column[idx + 1])
+        } else if current_column.len() == idx && idx != 0 {
+            // same column, upper one
+            Some(&current_column[idx - 1])
+        } else {
+            // there's only the window we're searching from in this column, try left/right columns
+            if column_idx > 0 {
+                // there's a window to the left
+                Some(&self.privileged[column_idx - 1][0])
+            } else if self.privileged.len() > 1 {
+                // there's a window to the right, because the one deleted is at idx 0
+                Some(&self.privileged[column_idx + 1][0])
+            } else {
+                // this window is the only one in the privileged area.
+                None
+            }
+        }
+    }
+
+    pub fn remove(&mut self, window: Window, space: &mut Space<Window>) {
+        let Some((column_idx, idx)) = self.find_position(&window) else {
+            return;
+        };
+
+        let col = &mut self.privileged[column_idx];
+        let window = &col[idx];
+
+        space.unmap_elem(window);
+        let size = window.geometry().size;
+
+        if col.len() > 1 {
+            col.remove(idx);
+            self.redo_height(space, size.h, column_idx);
+        } else {
+            self.privileged.remove(column_idx);
+            self.redo_widths(space, size.w + self.spaces.horizontal as i32);
+        }
+    }
+
+    pub fn new_focus(&mut self, window: &Window) -> bool {
+        let Some(pos) = self.find_position(window) else {
+            return false;
+        };
+
+        self.focused = Some(pos);
+
+        true
+    }
+
+    pub fn new_focus_hinted(&mut self, x_hint: i32, space: &Space<Window>) -> Option<Window> {
+        let mut point = Point::<_, Logical>::new(x_hint, self.area.loc.y - 1); // -1 to make sure it falls into a window
+        let window = space.element_under(point.to_f64()).map(|x| x.0);
+
+        match window {
+            Some(found) => self.new_focus(found).then_some(found.clone()),
+            None => {
+                // maybe we fell in a space in-between windows? retry
+                point.x -= self.spaces.horizontal as i32;
+                if let Some(new_found) = space.element_under(point.to_f64()).map(|x| x.0) {
+                    self.new_focus(new_found).then_some(new_found.clone())
+                } else {
+                    // nope, can't find it. get the first window or just return None
+                    self.privileged.first().map(|x| x[0].clone())
+                }
+            }
+        } 
+    }
+
+    pub fn is_valid_idxs(&self, (column, idx): (usize, usize)) -> bool {
+        column < self.privileged.len() && idx < self.privileged[column].len()
+    }
+
+    pub fn shift_focus(&mut self, direction: Direction) -> ShiftFocusOutput {
+        let Some(mut new_indexes) = self.focused else { return ShiftFocusOutput::Invalid };
+        
+        // using a wrapping sub because if you're making usize::MAX windows and the
+        // validity test below passes that's just on you tbh
+        match direction {
+            Direction::Up => new_indexes.1 = new_indexes.1.wrapping_sub(1),
+            Direction::Down => new_indexes.1 += 1,
+            Direction::Left => new_indexes.0 = new_indexes.0.wrapping_sub(1),
+            Direction::Right => new_indexes.0 += 1,
+        }
+
+        // new index isn't valid
+        if !self.is_valid_idxs(new_indexes) {
+            // lateral movement resulted in going out of bounds vertically, find last window in 
+            // new column
+            if new_indexes.0 < self.privileged.len() && direction != Direction::Down {
+                new_indexes.1 = self.privileged[new_indexes.0].len() -1;
+                let window = self.privileged[new_indexes.0][new_indexes.1].clone();
+                self.focused = Some(new_indexes);
+                return ShiftFocusOutput::Success(window)
+            }
+
+            // we went out of bounds downwards or in an unrecoverable way, send hint
+            if self.privileged.get(new_indexes.0).map(|x| x.len() <= new_indexes.1).is_some_and(|x| x) && direction == Direction::Down {
+                // send hint
+
+                // TODO: figure out if we need to reset the the focused position to None
+                return ShiftFocusOutput::OutOfBoundsHinted(self.get_point(new_indexes).x)
+            } else {
+                return ShiftFocusOutput::OutOfBounds;
+            }
+        }
+
+        self.focused = Some(new_indexes);
+        let window = self.privileged[new_indexes.0][new_indexes.1].clone();
+        ShiftFocusOutput::Success(window)
+
+    }
+
+    pub fn get_point(&self, (column_idx, idx): (usize, usize)) -> Point<i32, Logical> {
+        let mut current: Point<_, Logical> = Point::new(0, 0);
+
+        for col in 0..column_idx {
+            let window = &self.privileged[col][0];
+            
+            current.x += window.geometry().size.w + self.spaces.horizontal as i32 + 1; // +1 to correct for an overlapping pixel
+        }
+
+        for row in 0..idx {
+            let window = &self.privileged[column_idx][row];
+            
+            current.y += window.geometry().size.h + self.spaces.vertical as i32 + 1; 
+        }        
+
+        dbg!(current)
+    }
+
+    /// NOT WORKING:
+    /// window.geometry() doesn't work as i thought, need to find the window position
+    /// by knowing the layout, which isn't completed yet, so
+    /// TODO, FIXME
+    pub fn find_window(&self, point: Point<i32, Logical>) -> Option<&Window> {
+        for col in self.privileged.iter() {
+            let tester = &col[0];
+            let mut rect = tester.geometry();
+            rect.size.h = self.area.size.h;
+
+            // found the column
+            if rect.contains(point) {
+                for window in col {
+                    if window.geometry().contains(point) {
+                        return Some(window);
+                    }
+                }
+
+                // haven't found it in the right column, it's in some weird gap between windows or something
+                break;
+            }
+        }
+
+        None
+    }
+
+    /// NOT WORKING:
+    /// window.geometry() doesn't work as i thought, need to find the window position
+    /// by knowing the layout, which isn't completed yet, so
+    /// TODO, FIXME
+    pub fn find_window_pos(
+        &self,
+        point: Point<i32, Logical>,
+        space: &Space<Window>,
+    ) -> Option<(&Window, Point<i32, Logical>)> {
+        for (n, col) in self.privileged.iter().enumerate() {
+            let tester = &col[0];
+            let Some(mut rect) = space.element_geometry(tester) else {
+                continue;
+            };
+            dbg!(rect);
+            rect.size.h = self.area.size.h;
+
+            dbg!(rect);
+            // found the column
+            if rect.contains(point) {
+                println!("hit column: {}", n);
+                for window in col {
+                    if window.geometry().contains(point) {
+                        let pos = space.element_location(window).unwrap();
+                        return Some((window, pos));
+                    }
+                }
+
+                // haven't found it in the right column, it's in some weird gap between windows or something
+                break;
+            }
+        }
+
+        None
+    }
+}

@@ -2,8 +2,7 @@ use std::{ffi::OsString, sync::Arc, time::Instant};
 
 use smithay::{
     desktop::{PopupManager, Window}, input::{Seat, SeatState}, reexports::{
-    calloop::{self, EventLoop, Interest, LoopHandle, LoopSignal, generic::Generic},
-        wayland_server::{
+    calloop::{self, EventLoop, Interest, LoopHandle, LoopSignal, generic::Generic}, wayland_server::{
             Display, DisplayHandle,
         },
     }, utils::{Logical, Physical, SERIAL_COUNTER, Scale, Size}, wayland::{
@@ -25,6 +24,7 @@ pub struct State {
     pub layout: LayoutController,
     pub socket: OsString,
     pub output_state: OutputState,
+    pub config: Config,
 
     // smithay state
     pub compositor: CompositorState,
@@ -81,7 +81,7 @@ impl State {
             loop_signal,
             start_time,
             loop_handle,
-            layout: LayoutController::new(config, &output_state),
+            layout: LayoutController::new(&config, &output_state),
             compositor: CompositorState::new::<Self>(&display),
             shm: ShmState::new::<Self>(&display, vec![]),
             xdg_shell: XdgShellState::new::<Self>(&display),
@@ -93,10 +93,19 @@ impl State {
             output_state,
             seat,
             popups: PopupManager::default(),
+            config,
         }
     }
 
     pub fn set_kb_focus(&mut self, window: &Window) {
+        if let Some(xdg) = window.toplevel() {
+            xdg.with_pending_state(|state| {
+                state.states.set(smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State::Activated);
+            });
+
+            xdg.send_pending_configure();
+        }
+
         if let Some(x) = self.seat.get_keyboard() {
             x.set_focus(
                 self,

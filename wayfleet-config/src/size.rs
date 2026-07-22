@@ -65,7 +65,7 @@ pub struct Spaces {
     pub vertical: u32,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum Size<T> {
     Specified(T),
 

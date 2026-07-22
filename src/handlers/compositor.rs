@@ -1,6 +1,12 @@
-use smithay::{backend::renderer::utils::on_commit_buffer_handler, wayland::compositor::{CompositorHandler, get_parent, is_sync_subsurface}};
+use smithay::{
+    backend::renderer::utils::on_commit_buffer_handler,
+    wayland::{
+        compositor::{CompositorHandler, get_parent, is_sync_subsurface},
+        seat::WaylandFocus,
+    },
+};
 
-use crate::{handlers::ClientState, state::State};
+use crate::{handlers::ClientState, layout::controller::LayoutController, state::State};
 
 impl CompositorHandler for State {
     fn compositor_state(&mut self) -> &mut smithay::wayland::compositor::CompositorState {
@@ -36,5 +42,21 @@ impl CompositorHandler for State {
         };
 
         self.popups.commit(surface);
+    }
+
+    fn destroyed(
+        &mut self,
+        _surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    ) {
+        let window = self
+            .layout
+            .space
+            .elements()
+            .find(|x| x.wl_surface().is_some_and(|surface| *surface.as_ref() == *_surface))
+            .cloned();
+        
+        if let Some(window) = window{
+            LayoutController::remove(self, &window);
+        }
     }
 }

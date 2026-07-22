@@ -3,3 +3,4 @@ pub mod layout;
 pub mod winit;
 pub mod input;
 pub mod handlers;
+pub mod animations;

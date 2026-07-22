@@ -5,8 +5,9 @@ use knus::{DecodeScalar, ast::Literal, errors::{DecodeError, ExpectedType}, trai
 use crate::amount::Amount::Auto;
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum Amount {
+    #[default]
     Auto,
     Specified(i32),
 }

@@ -1,17 +1,58 @@
-map {
-    size {
-        rows 4
-        columns 6
-    }
-
-    cells "auto"
-
-    spaces { 
-        horizontal 10
-        vertical 10
+input {
+    keyboard {
+        layout "it"
     }
 }
 
-privileged {
-    size "auto"
+layout {
+    map {
+        size {
+            rows 2
+            columns 2
+        }
+
+        cells "auto"
+
+        spaces { 
+            horizontal 10
+            vertical 10
+        }
+    }
+
+    privileged {
+        height "auto"
+
+        spaces { 
+            horizontal 10
+            vertical 10
+        }
+    }
+}
+
+keybinds {
+    mod-key "ctrl"
+
+    Mod+Return { spawn "alacritty"; }
+    Mod+K      { spawn "kitty"; }
+    Mod+F      { spawn "firefox"; }
+
+    Mod+Q { close-window; }
+
+    Mod+Up    { move-focus-up; }
+    Mod+Down  { move-focus-down; }
+    Mod+Right { move-focus-right; }
+    Mod+Left  { move-focus-left; }
+
+    Mod+Shift+Up    { move-or-swap-up; }
+    Mod+Shift+Down  { move-or-swap-down; }
+    Mod+Shift+Right { move-or-swap-right; }
+    Mod+Shift+Left  { move-or-swap-left; }
+
+    // diag
+    Mod+Alt+L { dump-layout; }
+    Mod+Alt+M { dump-map; }
+    Mod+Alt+P { dump-privileged; }
+
+    Mod+egrave { push-lateral-left; }
+    Mod+plus   { push-lateral-right; }
 }
