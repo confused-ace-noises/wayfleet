@@ -1,8 +1,8 @@
 use std::{mem, time::Duration};
 
-use smithay::desktop::{Space, Window};
+use smithay::desktop::Space;
 
-use crate::animations::{Easing, InfoType, MoveAnimation};
+use crate::{animations::{Easing, InfoType, MoveAnimation}, layout::WayfleetWindow};
 
 use super::{Map, coordinate::{Coordinate, Direction}, tile::{Tile, TileType}};
 
@@ -23,7 +23,7 @@ impl Map {
     pub fn is_there_space_and_move(
         &mut self,
         coord: &Coordinate,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
         direction: Direction,
     ) -> Option<bool> {
         let x @ Tile {
@@ -128,7 +128,7 @@ impl Map {
         &mut self,
         old_coord: &Coordinate,
         new_leader_coord: &Coordinate,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) {
         unsafe { self.move_tile_replace(old_coord, new_leader_coord, None, space) };
     }
@@ -140,7 +140,7 @@ impl Map {
         old_coord: &Coordinate,
         new_leader_coord: &Coordinate,
         replace: Option<Tile>,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) {
         let Tile {
             tile_type: TileType::Leader { rows, cols, coord },
@@ -203,7 +203,7 @@ impl Map {
         let mut anim_lock = self.animation.write().unwrap();
 
         anim_lock.schedule::<MoveAnimation>(
-            InfoType::Final(self.get_position(*new_leader_coord)),
+            InfoType::Final(self.get_position_shifted(*new_leader_coord)),
             window,
             space,
             Duration::from_millis(150),

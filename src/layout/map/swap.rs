@@ -1,8 +1,8 @@
 use std::{mem, time::Duration};
 
-use smithay::desktop::{Space, Window};
+use smithay::desktop::Space;
 
-use crate::animations::{Easing, InfoType, MoveAnimation};
+use crate::{animations::{Easing, InfoType, MoveAnimation}, layout::WayfleetWindow};
 
 use super::{Map, coordinate::{Coordinate, Direction}, tile::{Tile, TileType}};
 
@@ -13,7 +13,7 @@ impl Map {
     pub fn swap_or_move_focused(
         &mut self,
         direction: Direction,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) -> Option<bool> {
         let focused = self.focus?;
         
@@ -24,7 +24,7 @@ impl Map {
         &mut self,
         position: &Coordinate,
         direction: Direction,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) -> Option<bool> {
         let ((g1, mut travel_1), (g2, mut travel_2)) = self.make_swap_groups(*position, direction)?;
 
@@ -67,8 +67,6 @@ impl Map {
                 Easing::EaseInOut,
             );
         };
-
-        println!("has cleared? {:#?}", self.map);
         
         for mut tile in g1 {
             let Tile { tile_type: TileType::Leader { coord, .. }, ..} = &mut tile else { unreachable!() };
@@ -77,14 +75,12 @@ impl Map {
 
             *coord = cloned;
 
-            anim(InfoType::Final(self.get_position(cloned)), tile.window.clone());
+            anim(InfoType::Final(self.get_position_shifted(cloned)), tile.window.clone());
             
             self[&cloned] = Some(tile);
     
             unsafe { self.repoint_regualr_tiles(cloned); }
         }
-
-        println!("g1 insert: {:#?}", self.map);
 
         for mut tile in g2 {
             let Tile { tile_type: TileType::Leader { coord, .. }, ..} = &mut tile else { unreachable!() };
@@ -93,14 +89,14 @@ impl Map {
 
             *coord = cloned;
 
-            anim(InfoType::Final(self.get_position(cloned)), tile.window.clone());
+            anim(InfoType::Final(self.get_position_shifted(cloned)), tile.window.clone());
 
             self[&cloned] = Some(tile);
     
             unsafe { self.repoint_regualr_tiles(cloned); }
         }
 
-        println!("performed swap: {:#?}", self.map);
+        self.shift_focus(direction, space);
 
         Some(true)
     }

@@ -84,6 +84,35 @@ impl From<[i32; 2]> for Coordinate {
     }
 }
 
+macro_rules! impl_mul_div {
+    ($ty:ty: $($int:ty),+) => {
+        $(
+            impl std::ops::Mul<$int> for $ty {
+                type Output = Self;
+            
+                fn mul(self, rhs: $int) -> Self::Output {
+                    let Coordinate { row, column } = self;
+                    
+                    Coordinate { row: row * rhs as i32, column: column * rhs as i32 }
+                }
+            }
+
+            impl std::ops::Div<$int> for $ty {
+                type Output = Self;
+            
+                fn div(self, rhs: $int) -> Self::Output {
+                    let Coordinate { row, column } = self;
+                    
+                    Coordinate { row: row / rhs as i32, column: column / rhs as i32 }
+                }
+            }
+        )+
+    };
+}
+
+impl_mul_div!(Coordinate: usize, i32, u32, i64, u64);
+
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Direction {
     Up,

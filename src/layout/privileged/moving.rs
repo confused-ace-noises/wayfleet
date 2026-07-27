@@ -1,13 +1,12 @@
-use std::time::Duration;
+use std::{mem, time::Duration};
 
 use smithay::{
-    desktop::{Space, Window},
+    desktop::Space,
     utils::{Logical, Point, Size},
 };
 
 use crate::{
-    animations::{Easing, InfoType, MoveAnimation, ResizeAnimation},
-    layout::map::coordinate::Direction,
+    animations::{Easing, InfoType, MoveAnimation, ResizeAnimation}, layout::{WayfleetWindow, map::coordinate::Direction},
 };
 
 use super::Privileged;
@@ -15,7 +14,7 @@ use super::Privileged;
 impl Privileged {
     pub fn swap_focused(&mut self, 
         direction: Direction, 
-        space: &mut Space<Window>
+        space: &mut Space<WayfleetWindow>
     ) -> Option<()> {
         let focused = self.focused?;
 
@@ -25,9 +24,9 @@ impl Privileged {
 
     pub fn swap(
         &mut self,
-        (column_idx, idx): (usize, usize),
+        (mut column_idx, mut idx): (usize, usize),
         direction: Direction,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) {
         let mut other_column = column_idx;
         let mut other_idx = idx;
@@ -42,10 +41,13 @@ impl Privileged {
         if column_idx != other_column {
             // swap columns
 
-            // TODO: this needs to be redone so that it
-            // accounts for different sized columns
+            // swap first so that get_point_tuple gets stuff right
+            self.privileged.swap(column_idx, other_column);
+
             let reference1 = self.get_point_tuple_shifted((column_idx, 0));
             let reference2 = self.get_point_tuple_shifted((other_column, 0));
+            
+            std::mem::swap(&mut column_idx, &mut other_column);
 
             let [col1, col2] = [
                 self
@@ -84,24 +86,22 @@ impl Privileged {
                 );
             }
 
-            self.privileged.swap(column_idx, other_column);
         } else {
             // swap windows within column
+            let column = &mut self.privileged[column_idx];
+
+            // we swap here first so that 
+            column.swap(idx, other_idx);
+
             let column = &self.privileged[column_idx];
+            
             let win1 = column.get(idx).unwrap();
             let win2 = column.get(other_idx).unwrap();
-
-            // TODO: this needs to be redone so that it
-            // accounts for different sized windows
-            let mut win1_pos = self.get_point_tuple_shifted((column_idx, idx));
-            let mut win2_pos = self.get_point_tuple_shifted((column_idx, other_idx));
-
-            // also TODO, fix this
             
-            // if idx == 0 || other_idx == 0 {
-            //     win1_pos.y += self.spaces.vertical as i32;
-            //     win2_pos.y -= self.spaces.vertical as i32;
-            // }
+            mem::swap(&mut idx, &mut other_idx);
+
+            let win1_pos = self.get_point_tuple_shifted((column_idx, idx));
+            let win2_pos = self.get_point_tuple_shifted((column_idx, other_idx));
 
             let mut animation = self.animation.write().unwrap();
 
@@ -120,10 +120,6 @@ impl Privileged {
                 Duration::from_millis(150),
                 Easing::EaseInOut,
             );
-
-            let column = &mut self.privileged[other_column];
-
-            column.swap(idx, other_idx);
         }
 
         if let Some((col, idx)) = self.focused.as_mut() {
@@ -140,9 +136,9 @@ impl Privileged {
 
     pub fn swap_window(
         &mut self,
-        window: &Window,
+        window: &WayfleetWindow,
         direction: Direction,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) {
         let Some((column_idx, idx)) = self.find_position(window) else {
             return;
@@ -155,10 +151,10 @@ impl Privileged {
         &mut self,
         (column_idx, idx): (usize, usize),
         direction: Direction,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) -> bool {
         let (Direction::Left | Direction::Right) = direction else {
-            unimplemented!("not lateral movement")
+            unimplemented!("not lateral movement. report this.")
         };
 
         if self.privileged[column_idx].len() == 1 {
@@ -295,7 +291,7 @@ impl Privileged {
     pub fn push_focus_laterally(
         &mut self,
         direction: Direction,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) -> bool {
         if let Some(focus) = self.focused {
             self.push_laterally(focus, direction, space);

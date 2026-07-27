@@ -1,15 +1,15 @@
 use std::fmt;
 
-use smithay::{desktop::{Space, Window}, utils::{Logical, Point, Size}};
+use smithay::{desktop::Space, utils::{Logical, Point, Size}};
 
-use crate::layout::controller::{LayoutController, ResizeType};
+use crate::layout::{WayfleetWindow, controller::{LayoutController, ResizeType}};
 
 use super::InfoType;
 
 pub trait AnimationDriver: fmt::Debug + Send + Sync {
     type Value: Lerp + Into<(i32, i32)> + fmt::Debug + Clone + Send + Sync + 'static;
-    fn drive(&mut self, value: &Self::Value, window: &Window, space: &mut Space<Window>);
-    fn start_end(&self, info: InfoType<Self::Value>, window: &Window, space: &Space<Window>) -> (Self::Value, Self::Value);
+    fn drive(&mut self, value: &Self::Value, window: &WayfleetWindow, space: &mut Space<WayfleetWindow>);
+    fn start_end(&self, info: InfoType<Self::Value>, window: &WayfleetWindow, space: &Space<WayfleetWindow>) -> (Self::Value, Self::Value);
     fn init() -> Self;
 }
 
@@ -19,11 +19,11 @@ pub struct MoveAnimation;
 impl AnimationDriver for MoveAnimation {
     type Value = Point<i32, Logical>;
 
-    fn drive(&mut self, value: &Self::Value, window: &Window, space: &mut Space<Window>) {
+    fn drive(&mut self, value: &Self::Value, window: &WayfleetWindow, space: &mut Space<WayfleetWindow>) {
         space.relocate_element(window, *value);
     }
 
-    fn start_end(&self, info: InfoType<Self::Value>, window: &Window, space: &Space<Window>) -> (Self::Value, Self::Value) {
+    fn start_end(&self, info: InfoType<Self::Value>, window: &WayfleetWindow, space: &Space<WayfleetWindow>) -> (Self::Value, Self::Value) {
         let start = space.element_location(window).unwrap();
         let end = match info {
             InfoType::Delta(delta) => {
@@ -46,11 +46,11 @@ pub struct ResizeAnimation;
 impl AnimationDriver for ResizeAnimation {
     type Value = Size<i32, Logical>;
 
-    fn drive(&mut self, value: &Self::Value, window: &Window, _: &mut Space<Window>) {
+    fn drive(&mut self, value: &Self::Value, window: &WayfleetWindow, _: &mut Space<WayfleetWindow>) {
         LayoutController::resize(window, ResizeType::Both(*value));
     }
 
-    fn start_end(&self, info: InfoType<Self::Value>, window: &Window, _: &Space<Window>) -> (Self::Value, Self::Value) {
+    fn start_end(&self, info: InfoType<Self::Value>, window: &WayfleetWindow, _: &Space<WayfleetWindow>) -> (Self::Value, Self::Value) {
         let start = window.geometry().size;
         let end = match info {
             InfoType::Delta(mut delta) => {

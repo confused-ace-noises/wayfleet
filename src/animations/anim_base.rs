@@ -1,12 +1,14 @@
 use std::time::{Duration, Instant};
 
-use smithay::desktop::{Space, Window};
+use smithay::desktop::Space;
+
+use crate::layout::WayfleetWindow;
 
 use super::{drivers::AnimationDriver, easings::Easing, InfoType, drivers::Lerp};
 
 #[derive(Debug)]
 pub struct AnimationBase<T: AnimationDriver> {
-    pub window: Window,
+    pub window: WayfleetWindow,
     pub total_time: Duration,
     pub start_time: Instant,
     pub easing: Easing,
@@ -18,7 +20,7 @@ pub struct AnimationBase<T: AnimationDriver> {
 }
 
 impl<T: AnimationDriver> AnimationBase<T> {
-    pub fn new_with_time(result: InfoType<T::Value>, window: Window, space: &Space<Window>, time: Duration, easing: Easing, start_time: Instant, wait: usize) -> Self {
+    pub fn new_with_time(result: InfoType<T::Value>, window: WayfleetWindow, space: &Space<WayfleetWindow>, time: Duration, easing: Easing, start_time: Instant, wait: usize) -> Self {
         let driver = T::init();
         let (start, end) = driver.start_end(result, &window, space);
 
@@ -35,16 +37,16 @@ impl<T: AnimationDriver> AnimationBase<T> {
         }
     }
 
-    pub fn new(result: InfoType<T::Value>, window: Window, space: &Space<Window>, time: Duration, easing: Easing) -> Self {
+    pub fn new(result: InfoType<T::Value>, window: WayfleetWindow, space: &Space<WayfleetWindow>, time: Duration, easing: Easing) -> Self {
         Self::new_with_wait(result, window, space, time, easing, 0)
     }
 
-    pub fn new_with_wait(result: InfoType<T::Value>, window: Window, space: &Space<Window>, time: Duration, easing: Easing, wait: usize) -> Self {
+    pub fn new_with_wait(result: InfoType<T::Value>, window: WayfleetWindow, space: &Space<WayfleetWindow>, time: Duration, easing: Easing, wait: usize) -> Self {
         let now = Instant::now();
         Self::new_with_time(result, window, space, time, easing, now, wait)
     }
 
-    pub fn tick(&mut self, space: &mut Space<Window>) -> bool {
+    pub fn tick(&mut self, space: &mut Space<WayfleetWindow>) -> bool {
         if self.wait > 0 {
             self.wait -= 1;
             self.start_time = Instant::now();

@@ -1,16 +1,16 @@
 use std::time::Duration;
 
 use smithay::{
-    desktop::{Space, Window},
+    desktop::Space,
     utils::{Point, Size},
 };
 
 use crate::{
-    animations::{Easing, InfoType, MoveAnimation, ResizeAnimation}, layout::privileged::Privileged,
+    animations::{Easing, InfoType, MoveAnimation, ResizeAnimation}, layout::{WayfleetWindow, privileged::Privileged},
 };
 
 impl Privileged {
-    pub fn recalc_widths(&mut self, total_delta: i32, space: &Space<Window>) {
+    pub fn recalc_widths(&mut self, total_delta: i32, space: &Space<WayfleetWindow>) {
         let columns = self.privileged.len() as i32;
         if columns == 0 {
             return;
@@ -53,7 +53,7 @@ impl Privileged {
     /// call BEFORE adding
     /// call AFTER removing
     /// returns actual delta
-    pub fn recalc_heights(&mut self, column: usize, total_delta: i32, space: &Space<Window>) -> i32 {
+    pub fn recalc_heights(&mut self, column: usize, total_delta: i32, space: &Space<WayfleetWindow>) -> i32 {
         let pos_x: i32 = self.privileged.iter().take(column).map(|x| x[0].size.w + self.spaces.horizontal as i32).sum::<i32>() - self.right_shift;
         
         let column = &mut self.privileged[column];
@@ -77,7 +77,7 @@ impl Privileged {
 
             animation.schedule::<ResizeAnimation>(
                 InfoType::Delta(size),
-                (*tile).clone(),
+                tile.window.clone(),
                 space,
                 Duration::from_millis(150),
                 Easing::EaseInOut,
@@ -85,7 +85,7 @@ impl Privileged {
 
             animation.schedule::<MoveAnimation>(
                 InfoType::Final(Point::new(pos_x, pos)),
-                (*tile).clone(),
+                tile.window.clone(),
                 space,
                 Duration::from_millis(150),
                 Easing::EaseInOut,

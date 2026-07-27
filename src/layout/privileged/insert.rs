@@ -1,21 +1,23 @@
 use smithay::{desktop::{Space, Window}, utils::{Logical, Point}};
 
-use crate::layout::{controller::{LayoutController, ResizeType}, privileged::{Privileged, tile::Tile}};
+use crate::layout::{WayfleetWindow, WayfleetWindowType, controller::{LayoutController, ResizeType}, privileged::{Privileged, tile::Tile}};
 
 impl Privileged {
-    pub fn insert_right_of_focus(&mut self, window: Window, space: &Space<Window>) -> Option<Point<i32, Logical>> {
+    pub fn insert_right_of_focus(&mut self, window: Window, space: &Space<WayfleetWindow>) -> Option<Point<i32, Logical>> {
         self.focused.map(|(focused_col, _)| self.insert_new(focused_col+1, window, space))
     }
 
-    pub fn insert_new_last(&mut self, window: Window, space: &Space<Window>) -> Point<i32, Logical> {
+    pub fn insert_new_last(&mut self, window: Window, space: &Space<WayfleetWindow>) -> Point<i32, Logical> {
         let len = self.privileged.len();
 
         self.insert_new(len, window, space)
     }
     
-    pub fn insert_new(&mut self, column: usize, window: Window, space: &Space<Window>) -> Point<i32, Logical> {
+    pub fn insert_new(&mut self, column: usize, window: Window, space: &Space<WayfleetWindow>) -> Point<i32, Logical> {
         let size = self.std_size;
-        
+
+        let window = WayfleetWindow::new(window, WayfleetWindowType::Privileged);
+
         // dont animate because the resize should be instant here
         LayoutController::resize(&window, ResizeType::Both(size));
 
@@ -27,7 +29,7 @@ impl Privileged {
         self.get_point_tuple_shifted((column, 0))
     }
 
-    pub fn remove(&mut self, window: Window, space: &mut Space<Window>) {
+    pub fn remove(&mut self, window: WayfleetWindow, space: &mut Space<WayfleetWindow>) {
         let Some((column_idx, idx)) = self.find_position(&window) else {
             return;
         };

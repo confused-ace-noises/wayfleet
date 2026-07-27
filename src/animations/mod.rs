@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{any::{Any, TypeId}, collections::HashMap, fmt::Debug, sync::{Arc, RwLock}, time::{Duration, Instant}};
 
-use smithay::desktop::{Space, Window};
+use smithay::desktop::Space;
 
 pub mod drivers;
 pub mod easings;
@@ -10,6 +10,8 @@ pub mod anim_base;
 pub use drivers::*;
 pub use easings::*;
 pub use anim_base::*;
+
+use crate::layout::WayfleetWindow;
 
 #[derive(Debug)]
 pub enum InfoType<T> {
@@ -29,14 +31,14 @@ pub struct AnimationHandle(pub Arc<RwLock<AnimationController>>);
 #[derive(Debug)]
 pub struct AnimationController {
     #[allow(private_interfaces)]
-    pub running: HashMap<Window, Vec<Box<dyn AnimationErased>>>,
+    pub running: HashMap<WayfleetWindow, Vec<Box<dyn AnimationErased>>>,
     pub frequency: Duration,
     pub last: Instant,
 }
 
 #[allow(unused)]
 pub(super) trait DynWaitingAnim: Debug {
-    fn into_anim(self: Box<Self>, window: Window, space: &Space<Window>) -> Box<dyn AnimationErased>;
+    fn into_anim(self: Box<Self>, window: WayfleetWindow, space: &Space<WayfleetWindow>) -> Box<dyn AnimationErased>;
 
     fn driver_type(&self) -> TypeId;
     
@@ -56,7 +58,7 @@ impl<A> DynWaitingAnim for WaitingAnimation<A>
 where 
     A: AnimationDriver + fmt::Debug + 'static
 {
-    fn into_anim(self: Box<Self>, window: Window, space: &Space<Window>) -> Box<dyn AnimationErased> {
+    fn into_anim(self: Box<Self>, window: WayfleetWindow, space: &Space<WayfleetWindow>) -> Box<dyn AnimationErased> {
         let WaitingAnimation { result, duration, easing } = *self;
 
         let base_anim = AnimationBase::<A>::new(result, window, space, duration, easing);
@@ -99,7 +101,7 @@ impl AnimationController {
         }
     }
 
-    pub fn schedule<A>(&mut self, result: InfoType<A::Value>, window: Window, space: &Space<Window>, time: Duration, easing: Easing) 
+    pub fn schedule<A>(&mut self, result: InfoType<A::Value>, window: WayfleetWindow, space: &Space<WayfleetWindow>, time: Duration, easing: Easing) 
     where 
         A: AnimationDriver + fmt::Debug + 'static 
     {
@@ -122,7 +124,7 @@ impl AnimationController {
         self.running.entry(window.clone()).or_insert(vec![]).push(Box::new(base));
     }
 
-    pub fn tick(&mut self, space: &mut Space<Window>) {
+    pub fn tick(&mut self, space: &mut Space<WayfleetWindow>) {
         let now = Instant::now();
 
         if now.duration_since(self.last) >= self.frequency {
@@ -138,8 +140,8 @@ impl AnimationController {
 
 #[allow(unused)]
 pub(super) trait AnimationErased: fmt::Debug + Send + Sync {
-    fn window(&self) -> &Window;
-    fn tick(&mut self, space: &mut Space<Window>) -> bool;
+    fn window(&self) -> &WayfleetWindow;
+    fn tick(&mut self, space: &mut Space<WayfleetWindow>) -> bool;
 
     fn as_any(&self) -> &dyn Any;
     fn driver_type(&self) -> TypeId;
@@ -151,11 +153,11 @@ where
     T: fmt::Debug + AnimationDriver + 'static + Send + Sync,
     T::Value: fmt::Debug,
 {
-    fn window(&self) -> &Window {
+    fn window(&self) -> &WayfleetWindow {
         &self.window
     }
 
-    fn tick(&mut self, space: &mut Space<Window>) -> bool {
+    fn tick(&mut self, space: &mut Space<WayfleetWindow>) -> bool {
         self.tick(space)
     }
 

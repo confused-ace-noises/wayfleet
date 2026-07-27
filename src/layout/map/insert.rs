@@ -1,11 +1,13 @@
 use std::mem;
 
-use smithay::desktop::{Space, Window};
+use smithay::desktop::Space;
+
+use crate::layout::WayfleetWindow;
 
 use super::{Map, coordinate::Coordinate, tile::{Tile, TileType}};
 
 impl Map {
-    pub fn insert(&mut self, window: Window) -> Option<Coordinate> {
+    pub fn insert(&mut self, window: WayfleetWindow) -> Option<Coordinate> {
         if let Some(coord) = self.first_available {
             self[&coord] = Some(Tile::new_leader(window, coord));
             self.recalculate_available();
@@ -15,7 +17,7 @@ impl Map {
         }
     }
 
-    pub fn insert_at(&mut self, window: Window, position: &Coordinate) -> bool {
+    pub fn insert_at(&mut self, window: WayfleetWindow, position: &Coordinate) -> bool {
         let x = &mut self[position];
 
         if x.is_none() {
@@ -31,7 +33,7 @@ impl Map {
         }
     }
 
-    pub fn remove(&mut self, position: &Coordinate, space: &mut Space<Window>) -> Option<Vec<Tile>> {
+    pub fn remove(&mut self, position: &Coordinate, space: &mut Space<WayfleetWindow>) -> Option<Vec<Tile>> {
         if let Some(x) = self.focus && x == *position {
             self.focus = None
         } 
@@ -64,11 +66,12 @@ impl Map {
     }
     
     pub fn recalculate_available(&mut self) {
-        if let Some(Coordinate { row, mut column }) = self.first_available {
+        if let Some(Coordinate { row, column }) = self.first_available {
             let mut found = false;
+            let mut mut_column = column; 
             // first try, in front
             'outer: for r in (row as usize)..self.rows {
-                for c in (column as usize)..self.columns {
+                for c in (mut_column as usize)..self.columns {
                     if self.map[r][c].is_none() {
                         self.first_available = Some(Coordinate {
                             row: r as i32,
@@ -78,7 +81,7 @@ impl Map {
                         break 'outer;
                     }
                 }
-                column = 0;
+                mut_column = 0;
             }
 
             // try behind

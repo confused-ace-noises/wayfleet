@@ -1,8 +1,8 @@
-use std::{time::{Duration, Instant}};
+use std::time::Instant;
 use miette::Result;
 use nix::sys::signal::{SaFlags, SigAction, SigHandler, SigSet, Signal, sigaction};
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};
-use wayfleet::{layout::map::coordinate::Direction, state::State};
+use wayfleet::state::State;
 use wayfleet_config::Config;
 
 const CONFIG_FILE: &str = "config.kdl";
@@ -17,7 +17,7 @@ fn main() -> Result<()> {
 
     unsafe { std::env::set_var("WAYLAND_DISPLAY", &state.socket) };
 
-    let mut last_done = Instant::now();
+    let _last_done = Instant::now();
     
     let action = SigAction::new(SigHandler::SigDfl, SaFlags::SA_NOCLDWAIT, SigSet::empty());
 
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     // let mut spawned = None;
 
 
-    let mut did_mod = false;
+    let _did_mod = false;
     event_loop.run(None, &mut state, |state| {    
         // println!("--------");
         // if spawned.is_none() {

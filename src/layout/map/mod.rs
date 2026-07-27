@@ -7,7 +7,7 @@ pub mod swap;
 pub mod resize;
 pub mod focus;
 
-use smithay::utils::{Logical, Point};
+use smithay::utils::{Logical, Point, Rectangle};
 use tile::Tile;
 use coordinate::Coordinate;
 use wayfleet_config::{amount::Amount, size::Spaces};
@@ -26,6 +26,8 @@ pub struct Map {
     pub offset: Point<i32, Logical>,
     pub animation: AnimationHandle,
     pub focus: Option<Coordinate>,
+    pub viewport_offset: Point<i32, Logical>,
+    pub viewport: Rectangle<i32, Logical>,
 }
 
 impl Map {
@@ -35,7 +37,7 @@ impl Map {
         OutputState { size: output_size, scale_factor, ..}: &OutputState,
         privileged_offset: i32
     ) -> Self {
-        let wayfleet_config::Map { size, cells, spaces, margins } = config;
+        let wayfleet_config::Map { size, cells, spaces, margins: _ } = config;
 
         let mut output_size = output_size.to_logical(*scale_factor);
 
@@ -107,7 +109,9 @@ impl Map {
 
         // TODO: proper margins
 
-        dbg!(Self {
+        let viewport = Rectangle { loc: Point::new(0, privileged_offset) , size: output_size };
+
+        Self {
             map: vec![vec![None; columns]; rows],
             first_available: Some([0, 0].into()),
             rows,
@@ -115,9 +119,11 @@ impl Map {
             cell_height,
             cell_width,
             spaces,
-            offset: Point::new(0, privileged_offset),
+            offset: viewport.loc,
             animation,
-            focus: None
-        })
+            focus: None,
+            viewport_offset: Point::new(0, 0),
+            viewport
+        }
     }
 }

@@ -7,11 +7,14 @@ input {
 layout {
     map {
         size {
-            rows 2
-            columns 2
+            rows 3
+            columns "auto"
         }
 
-        cells "auto"
+        cells {
+            width 400
+            height 400
+        }
 
         spaces { 
             horizontal 10

@@ -212,6 +212,10 @@ pub enum Action {
     PushLateralRight,
     PushLateralLeft,
 
+    // * Resize windows
+    // ChangeWindowHeight(#[knus(argument)] String),
+    // ChangeWindowWidth(#[knus(argument)] String),
+
     // * spawn
     Spawn(#[knus(arguments)] Vec<String>),
     SpawnSh(#[knus(argument)] String),

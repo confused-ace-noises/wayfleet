@@ -2,11 +2,13 @@ use std::ops::{Deref, DerefMut};
 
 use smithay::desktop::Window;
 
+use crate::layout::WayfleetWindow;
+
 use super::{Map, coordinate::{Coordinate, Direction}};
 
 #[derive(Debug, Clone)]
 pub struct Tile {
-    pub window: Window,
+    pub window: WayfleetWindow,
     pub tile_type: TileType,
 }
 
@@ -27,7 +29,7 @@ pub enum TileType {
 }
 
 impl Tile {
-    pub fn new_leader(window: Window, coord: Coordinate) -> Self {
+    pub fn new_leader(window: WayfleetWindow, coord: Coordinate) -> Self {
         Self {
             window,
             tile_type: TileType::Leader {
@@ -38,7 +40,7 @@ impl Tile {
         }
     }
 
-    pub fn new_regular(window: Window, coord: Coordinate) -> Self {
+    pub fn new_regular(window: WayfleetWindow, coord: Coordinate) -> Self {
         Self {
             window,
             tile_type: TileType::Regular(coord),

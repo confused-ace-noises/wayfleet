@@ -81,6 +81,7 @@ pub fn init_winit(
                 WinitEvent::Redraw => {
                     let render_result = {
                         let (renderer, mut framebuffer) = backend.bind().unwrap();
+                    
                         smithay::desktop::space::render_output::<
                             _,
                             WaylandSurfaceRenderElement<GlesRenderer>,

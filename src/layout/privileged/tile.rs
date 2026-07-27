@@ -1,10 +1,12 @@
 use std::ops::{Deref, DerefMut};
 
-use smithay::{desktop::Window, utils::{Logical, Size}};
+use smithay::utils::{Logical, Size};
+
+use crate::layout::WayfleetWindow;
 
 #[derive(Debug)]
 pub struct Tile {
-    pub window: Window,
+    pub window: WayfleetWindow,
     pub size: Size<i32, Logical>
 }
 
@@ -15,7 +17,7 @@ impl PartialEq for Tile {
 }
 
 impl Deref for Tile {
-    type Target = Window;
+    type Target = WayfleetWindow;
     
     fn deref(&self) -> &Self::Target {
         &self.window

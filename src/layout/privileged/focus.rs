@@ -1,9 +1,9 @@
-use smithay::{desktop::{Space, Window}, utils::{Logical, Point}};
+use smithay::{desktop::Space, utils::{Logical, Point}};
 
-use crate::layout::{map::{coordinate::{Coordinate, Direction}, focus::ShiftFocusOutput}, privileged::Privileged};
+use crate::layout::{WayfleetWindow, map::{coordinate::Direction, focus::ShiftFocusOutput}, privileged::Privileged};
 
 impl Privileged {
-    pub fn new_focus(&mut self, window: &Window, space: &Space<Window>) -> bool {
+    pub fn new_focus(&mut self, window: &WayfleetWindow, space: &Space<WayfleetWindow>) -> bool {
         let Some(pos) = self.find_position(window) else {
             return false;
         };
@@ -11,7 +11,7 @@ impl Privileged {
         self.new_focus_at(pos, space)
     }
 
-    pub fn new_focus_at(&mut self, pos: (usize, usize), space: &Space<Window>) -> bool {
+    pub fn new_focus_at(&mut self, pos: (usize, usize), space: &Space<WayfleetWindow>) -> bool {
         if self.is_valid_idxs(pos) {
             self.focused = Some(pos);
 
@@ -25,7 +25,7 @@ impl Privileged {
         }
     }
 
-    pub fn realign_focused(&mut self, space: &Space<Window>) {
+    pub fn realign_focused(&mut self, space: &Space<WayfleetWindow>) {
         if let Some(pos) = self.focused 
             && let Err(to_shift) = self.is_visible(pos) 
         {
@@ -33,14 +33,14 @@ impl Privileged {
         }
     }
 
-    pub fn new_focus_hinted(&mut self, x_hint: i32, space: &Space<Window>) -> Option<Window> {
-        let find_last = |point: Point<i32, Logical>| -> Option<&Window> {
+    pub fn new_focus_hinted(&mut self, x_hint: i32, space: &Space<WayfleetWindow>) -> Option<WayfleetWindow> {        
+    let find_last = |point: Point<i32, Logical>| -> Option<&WayfleetWindow> {
             let window = space.element_under(point.to_f64()).map(|x| x.0)?;
             let (column, _) = self.find_position(window)?;
             self.privileged[column].last().map(|x| &x.window)
         };
 
-        let mut point: Point<i32, Logical> = Point::<_, Logical>::new(x_hint, self.viewport.loc.y - 1); // -1 to make sure it falls into a window
+        let mut point: Point<i32, Logical> = Point::<_, Logical>::new(x_hint, self.viewport.loc.y + 1); // +1 to make sure it falls into a window
         let window = find_last(point).cloned();
 
         match window {
@@ -64,7 +64,7 @@ impl Privileged {
         } 
     }
 
-    pub fn shift_focus(&mut self, direction: Direction, space: &Space<Window>) -> ShiftFocusOutput {
+    pub fn shift_focus(&mut self, direction: Direction, space: &Space<WayfleetWindow>) -> ShiftFocusOutput {
         let Some(mut new_indexes) = self.focused else { return ShiftFocusOutput::Invalid };
         
         // using a wrapping sub because if you're making usize::MAX windows and the
@@ -85,7 +85,7 @@ impl Privileged {
             // new column
             else if new_indexes.0 < self.privileged.len() && direction != Direction::Down {
                 new_indexes.1 = self.privileged[new_indexes.0].len() -1;
-                let window = self.privileged[new_indexes.0][new_indexes.1].clone();
+                let window = self.privileged[new_indexes.0][new_indexes.1].window.clone();
                 self.new_focus_at(new_indexes, space);
                 return ShiftFocusOutput::Success(window)
             } else
@@ -94,14 +94,14 @@ impl Privileged {
                 // send hint
 
                 // TODO: figure out if we need to reset the the focused position to None
-                return ShiftFocusOutput::OutOfBoundsHinted(self.get_point_raw(Coordinate { column: new_indexes.0 as i32, row: new_indexes.1 as i32 }).x)
+                return ShiftFocusOutput::OutOfBoundsHinted(self.get_point_tuple_shifted((new_indexes.0, new_indexes.1)).x + (self.privileged[new_indexes.0][new_indexes.1 - 1].size.w / 2))
             } else {
                 return ShiftFocusOutput::OutOfBounds;
             }
         }
 
         self.new_focus_at(new_indexes, space);
-        let window = self.privileged[new_indexes.0][new_indexes.1].clone();
+        let window = self.privileged[new_indexes.0][new_indexes.1].window.clone();
         ShiftFocusOutput::Success(window)
 
     }

@@ -1,6 +1,5 @@
 use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
+    sync::{Arc, RwLock}, time::Duration,
 };
 
 use smithay::{
@@ -12,31 +11,29 @@ use smithay::{
 use wayfleet_config::Config;
 
 use crate::{
-    animations::{AnimationController, AnimationHandle},
-    layout::{
-        map::{
+    animations::{AnimationController, AnimationHandle}, layout::{
+        IntoWayfleetWindow, WayfleetWindow, WayfleetWindowType, map::{
             Map,
             coordinate::{Coordinate, Direction},
-        },
-        privileged::Privileged,
-    },
-    state::{OutputState, State},
+        }, privileged::Privileged,
+    }, state::{OutputState, State},
 };
 
 #[derive(Debug, Clone)]
 pub enum Focus {
     None,
-    Map(Window),
-    Privileged(Window),
+    Map(WayfleetWindow),
+    Privileged(WayfleetWindow),
 }
 
 #[derive(Debug)]
 pub struct LayoutController {
     pub map: Map,
     pub privileged: Privileged,
-    pub space: Space<Window>,
+    pub space: Space<WayfleetWindow>,
     pub animation: AnimationHandle,
     pub focus: Focus,
+    pub map_clip: Arc<RwLock<Rectangle<i32, Logical>>>
 }
 
 impl LayoutController {
@@ -57,6 +54,7 @@ impl LayoutController {
         );
 
         Self {
+            map_clip: Arc::new(RwLock::new(map.viewport)),
             map,
             privileged,
             space: Space::default(),
@@ -66,12 +64,13 @@ impl LayoutController {
     }
 
     pub fn insert_generic(&mut self, window: Window) -> InsertResult {
-        if let Some(coord) = self.map.insert(window.clone()) {
+        if let Some(coord) = self.map.insert(window.as_map(self.map_clip.clone())) {
             // TODO: move space mapping to insert
-            let pos = self.map.get_position(coord);
+            let window = window.as_map(self.map_clip.clone());
+            let pos = self.map.get_position_shifted(coord);
             self.space.map_element(window.clone(), pos, true);
             self.space.refresh();
-            self.map.new_focus(&window);
+            self.map.new_focus(&window, &self.space);
             self.focus = Focus::Map(window);
             InsertResult::InMap(coord)
         } else {
@@ -79,6 +78,7 @@ impl LayoutController {
                 .privileged
                 .insert_right_of_focus(window.clone(), &self.space)
                 .unwrap_or_else(|| self.privileged.insert_new_last(window.clone(), &self.space));
+            let window = WayfleetWindow::new(window, WayfleetWindowType::Privileged);
             self.space.map_element(window.clone(), pos, true);
             self.space.refresh();
             self.privileged.new_focus(&window, &self.space);
@@ -94,6 +94,7 @@ impl LayoutController {
                     .privileged
                     .insert_right_of_focus(window.clone(), &self.space)
                     .unwrap_or_else(|| self.privileged.insert_new_last(window.clone(), &self.space));
+                let window = WayfleetWindow::new(window, WayfleetWindowType::Privileged);
                 self.space.map_element(window.clone(), pos, true);
                 self.space.refresh();
                 self.privileged.new_focus(&window, &self.space);
@@ -106,7 +107,7 @@ impl LayoutController {
 
     pub fn insert_priv(&mut self, window: Window) {
         let pos = self.privileged.insert_right_of_focus(window.clone(), &self.space).unwrap_or_else(|| self.privileged.insert_new_last(window.clone(), &self.space));
-        self.space.map_element(window, pos, true);
+        self.space.map_element(WayfleetWindow::new(window, WayfleetWindowType::Privileged), pos, true);
     }
 
     pub fn resize(window: &Window, resize: ResizeType) -> Option<()> {
@@ -183,6 +184,7 @@ impl LayoutController {
         lock.tick(&mut self.space);
     }
 
+    /*
     // TODO: switch to faster algorithm once layout is fleshed out
     pub fn find_window(&self, point: Point<f64, Logical>) -> Option<&Window> {
         // * faster algo
@@ -214,13 +216,22 @@ impl LayoutController {
 
         self.space.element_under(point)
     }
+    */
+
+    pub fn find_window(&self, point: Point<f64, Logical>) -> Option<&WayfleetWindow> {
+        self.find_window_pos(point).map(|x| x.0)
+    }
+
+    pub fn find_window_pos(&self, point: Point<f64, Logical>) -> Option<(&WayfleetWindow, Point<i32, Logical>)> {
+        self.space.element_under(point)
+    }
 
     pub fn move_focus(state: &mut State, direction: Direction) {
         let _self = &mut state.layout;
 
         match _self.focus.clone() {
             Focus::Map(old) => {
-                let x = _self.map.shift_focus(direction);
+                let x = _self.map.shift_focus(direction, &_self.space);
 
                 match x {
                     super::map::focus::ShiftFocusOutput::Success(window) => {
@@ -232,7 +243,7 @@ impl LayoutController {
                     super::map::focus::ShiftFocusOutput::OutOfBoundsHinted(hint) => {
                         if let Some(new) = _self.privileged.new_focus_hinted(hint, &_self.space) {
                             state.refocus(&old, &new);
-                            state.layout.focus = Focus::Map(new);
+                            state.layout.focus = Focus::Privileged(new);
                         }
                     }
                 }
@@ -250,7 +261,7 @@ impl LayoutController {
                     super::map::focus::ShiftFocusOutput::OutOfBoundsHinted(hint) => {
                         if let Some(new) = _self.map.new_focus_hinted(hint, &_self.space) {
                             state.refocus(&old, &new);
-                            state.layout.focus = Focus::Privileged(new)
+                            state.layout.focus = Focus::Map(new)
                         }
                     }
                 }
@@ -259,7 +270,7 @@ impl LayoutController {
         }
     }
 
-    pub fn new_focus(state: &mut State, window: Window) {
+    pub fn new_focus(state: &mut State, window: WayfleetWindow) {
         let mut old_window = None;
 
         match &state.layout.focus {
@@ -268,7 +279,7 @@ impl LayoutController {
             Focus::None => {}
         }
 
-        if !state.layout.map.new_focus(&window) {
+        if !state.layout.map.new_focus(&window, &state.layout.space) {
             state
                 .layout
                 .privileged
@@ -306,7 +317,7 @@ impl LayoutController {
     }
 
     pub fn remove(state: &mut State, window: &Window) {
-        if let Some(tile) = state.layout.map.search_tile(window) {
+        if let Some(tile) = state.layout.map.search_tile(&window.as_map(state.layout.map_clip.clone())) {
             if let Focus::Map(win) = &state.layout.focus
                 && *win == *window
             {
@@ -317,7 +328,7 @@ impl LayoutController {
                 if let Some(window) = window {
                     // if the radial search found somehting, set that
                     state.refocus(&old_win, &window);
-                    state.layout.map.new_focus(&window);
+                    state.layout.map.new_focus(&window, &state.layout.space);
                     state.layout.focus = Focus::Map(window);
                 } else if let Some(window) = state
                     .layout
@@ -328,6 +339,7 @@ impl LayoutController {
                     .first()
                 {
                     // if radial search didn't find anything, just get the first one
+                    state.layout.map.viewport_offset = Point::<i32, Logical>::new(0, 0);
                     state.layout.map.focus = None;
                     let window = window.clone();
                     state
@@ -370,9 +382,10 @@ impl LayoutController {
                 {
                     // if radial search didn't find anything, just get the first one
                     state.layout.privileged.focused = None;
+                    state.layout.privileged.right_shift = 0;
                     let window = window.clone();
                     state.refocus(&old_win, &window);
-                    state.layout.map.new_focus(&window);
+                    state.layout.map.new_focus(&window, &state.layout.space);
                     state.layout.focus = Focus::Map(window.clone());
                 } else {
                     // if nothing is found at all, we just don't have a focus
@@ -383,7 +396,7 @@ impl LayoutController {
             state
                 .layout
                 .privileged
-                .remove(window.clone(), &mut state.layout.space);
+                .remove(window.as_priv(), &mut state.layout.space);
         }
     }
 

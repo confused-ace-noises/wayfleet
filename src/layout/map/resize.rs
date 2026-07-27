@@ -1,10 +1,24 @@
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 
-use smithay::{desktop::{Space, Window}, utils::{Logical, Size}};
+use smithay::{
+    desktop::Space,
+    utils::{Logical, Size},
+};
 
-use crate::animations::{AnimationBase, Easing, InfoType, MoveAnimation, ResizeAnimation};
+use crate::{
+    animations::{AnimationBase, Easing, InfoType, MoveAnimation, ResizeAnimation},
+    layout::WayfleetWindow,
+};
 
-use super::{Map, coordinate::{Coordinate, Direction}, tile::{Tile, TileType}, moving::{DoMove, MoveInstructions}};
+use super::{
+    Map,
+    coordinate::{Coordinate, Direction},
+    moving::{DoMove, MoveInstructions},
+    tile::{Tile, TileType},
+};
 
 impl Map {
     pub fn change_cells(
@@ -12,7 +26,7 @@ impl Map {
         position: &Coordinate,
         direction: Direction,
         remove: bool,
-        space: &mut Space<Window>,
+        space: &mut Space<WayfleetWindow>,
     ) -> Option<bool> {
         let current = self[position].as_ref()?;
         let tile @ Tile {
@@ -57,32 +71,28 @@ impl Map {
             let start = Instant::now();
 
             if new_coord != coord {
-                anim_lock.schedule_specific(
-                    AnimationBase::<MoveAnimation>::new_with_time(
-                        InfoType::Final(self.get_position(new_coord)),
-                        tile.window.clone(),
-                        space,
-                        Duration::from_millis(150),
-                        Easing::EaseInOut,
-                        start,
-                        // this is just a magic number, i thought it should
-                        // be 1 but it works with 2 for some reason? idk
-                        2,
-                    ),
-                );
-            }
-            // let start = Instant::now();
-            anim_lock.schedule_specific(
-                AnimationBase::<ResizeAnimation>::new_with_time(
-                    InfoType::Delta(anim_delta),
+                anim_lock.schedule_specific(AnimationBase::<MoveAnimation>::new_with_time(
+                    InfoType::Final(self.get_position_shifted(new_coord)),
                     tile.window.clone(),
                     space,
                     Duration::from_millis(150),
                     Easing::EaseInOut,
                     start,
-                    0,
-                ),
-            );
+                    // this is just a magic number, i thought it should
+                    // be 1 but it works with 2 for some reason? idk
+                    2,
+                ));
+            }
+            // let start = Instant::now();
+            anim_lock.schedule_specific(AnimationBase::<ResizeAnimation>::new_with_time(
+                InfoType::Delta(anim_delta),
+                tile.window.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+                start,
+                0,
+            ));
 
             drop(anim_lock);
 
@@ -153,7 +163,7 @@ impl Map {
                 tile.window,
                 space,
                 Duration::from_millis(150),
-                Easing::EaseInOut
+                Easing::EaseInOut,
             );
         }
 
@@ -164,5 +174,66 @@ impl Map {
         self.recalculate_available();
 
         Some(true)
+    }
+
+    pub fn resize_all_cells(
+        &mut self,
+        amount_w: i32,
+        amount_h: i32,
+        space: &Space<WayfleetWindow>,
+    ) -> bool {
+        if 
+        // would become 0-sized or negative
+            self.cell_height >= -amount_h 
+            || self.cell_width >= -amount_w
+            // would become bigger than viewport
+            || self.cell_height + amount_h > self.viewport.size.h
+            || self.cell_width + amount_w > self.viewport.size.w
+        {
+            return false;
+        }
+
+        self.cell_width += amount_w;
+        self.cell_height += amount_h;
+
+        let mut anim = self.animation.write().unwrap();
+
+        let mut size = Size::new(0, 0);
+        size.w += amount_w;
+        size.h += amount_h;
+
+        let mut done_leaders = HashSet::new();
+
+        for r in 0..self.rows {
+            for c in 0..self.columns {
+                if let Some(tile) = self.map[r][c].as_ref() {
+                    let leader_coord = tile.leader_coord();
+                    if !done_leaders.contains(&leader_coord) {
+                        done_leaders.insert(leader_coord);
+
+                        anim.schedule::<ResizeAnimation>(
+                            InfoType::Delta(size),
+                            tile.window.clone(),
+                            space,
+                            Duration::from_millis(150),
+                            Easing::EaseInOut,
+                        );
+
+                        anim.schedule::<MoveAnimation>(
+                            InfoType::Final(self.get_position_shifted(Coordinate {
+                                row: r as i32,
+                                column: c as i32,
+                            })),
+                            tile.window.clone(),
+                            space,
+                            Duration::from_millis(150),
+                            Easing::EaseInOut,
+                        );
+                    }
+                }
+            }
+        }
+
+        true
     }
 }

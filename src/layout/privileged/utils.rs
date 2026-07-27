@@ -3,14 +3,13 @@ use std::{
 };
 
 use smithay::{
-    desktop::{Space, Window},
+    desktop::Space,
     utils::{Logical, Point},
 };
 
 use super::Privileged;
 use crate::{
-    animations::{Easing, InfoType, MoveAnimation},
-    layout::{map::coordinate::Coordinate, privileged::tile::Tile},
+    animations::{Easing, InfoType, MoveAnimation}, layout::{WayfleetWindow, map::coordinate::Coordinate, privileged::tile::Tile},
 };
 
 impl Index<Coordinate> for Privileged {
@@ -28,7 +27,7 @@ impl IndexMut<Coordinate> for Privileged {
 }
 
 impl Privileged {
-    pub fn shift_columsn<T>(&mut self, delta: i32, range: T, space: &Space<Window>)
+    pub fn shift_columsn<T>(&mut self, delta: i32, range: T, space: &Space<WayfleetWindow>)
     where
         T: RangeBounds<usize> + SliceIndex<[Vec<Tile>]>,
     {
@@ -65,7 +64,7 @@ impl Privileged {
         }
     }
 
-    pub fn shift_all(&mut self, delta: i32, space: &Space<Window>) {
+    pub fn shift_all(&mut self, delta: i32, space: &Space<WayfleetWindow>) {
         self.right_shift -= delta;
         self.shift_columsn(delta, .., space);
     }
@@ -86,7 +85,7 @@ impl Privileged {
             (true, false) => {
                 let rect_top_right = rect.loc.x + rect.size.w;
 
-                dbg!(Err(rect_top_right - point_right.x))
+                Err(rect_top_right - point_right.x)
             }
             (false, true) => {
                 let rect_top_left = rect.loc.x;
@@ -110,7 +109,7 @@ impl Privileged {
         }
     }
 
-    pub fn find_position(&self, searching: &Window) -> Option<(usize, usize)> {
+    pub fn find_position(&self, searching: &WayfleetWindow) -> Option<(usize, usize)> {
         self.privileged
             .iter()
             .enumerate()
@@ -158,7 +157,7 @@ impl Privileged {
         self.get_point_tuple_raw(pos) - Point::new(self.right_shift, 0)
     }
 
-    pub fn radial_search<'a>(&'a self, searching: &Window) -> Option<&'a Window> {
+    pub fn radial_search<'a>(&'a self, searching: &WayfleetWindow) -> Option<&'a WayfleetWindow> {
         let (column_idx, idx) = self.find_position(searching)?;
 
         let current_column = &self.privileged[column_idx];
