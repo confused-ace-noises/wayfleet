@@ -47,6 +47,8 @@ impl Map {
         let g1 = g1.into_iter().cloned().collect::<Vec<_>>();
         let g2 = g2.into_iter().cloned().collect::<Vec<_>>();
 
+        let is_g2_empty = g2.is_empty();
+
         for tile in g1.iter().chain(g2.iter())  {
             let Tile { tile_type: TileType::Leader { coord, .. }, ..} = tile else { unreachable!() };
             // SAFETY:
@@ -96,6 +98,10 @@ impl Map {
             unsafe { self.repoint_regualr_tiles(cloned); }
         }
 
+        if is_g2_empty {
+            self.recalculate_available();
+        }
+
         self.shift_focus(direction, space);
 
         Some(true)
@@ -111,30 +117,24 @@ impl Map {
         
         // check if we're going outside boundries
         let _ = self.map.get(step.row as usize)?.get(step.column as usize)?;
-        
-        println!("passed out of bounds check");
-        
+                
         let current = self[&start].as_ref()?;
         let leader = self.get_leader(current);
         
-        let mut pivot_g1 = dbg!(leader.find_outskirts(self, &direction)[0]);
-        let mut pivot_g2 = dbg!(pivot_g1.step_towards(direction));
+        let mut pivot_g1 = leader.find_outskirts(self, &direction)[0];
+        let mut pivot_g2 = pivot_g1.step_towards(direction);
 
         let calc_dist = |pivot: &Coordinate, tile: &Tile, current_direction: Direction, is_starting_dir: bool| {
             let farthest = tile.find_outskirts(self, &current_direction)[0];
             
-            println!("tile : {:?} has farthest: {farthest:?}", tile.tile_type);
-
             let dist: Coordinate = *pivot - farthest;
-            
-            println!("resulting dist: {dist:?}");
 
             match current_direction {
                 Direction::Up | Direction::Down => {
-                    dbg!(dist.row + if is_starting_dir { 1 } else { -1 })
+                    dist.row + if is_starting_dir { 1 } else { -1 }
                 },
 
-                Direction::Left | Direction::Right => dbg!(dist.column + if is_starting_dir { 1 } else { -1 }),
+                Direction::Left | Direction::Right => dist.column + if is_starting_dir { 1 } else { -1 },
             }
         };
 
@@ -145,7 +145,6 @@ impl Map {
                        Some(calc_dist(pivot, x, current_direction, is_starting_dir))
                     },
                     TileType::Regular(_) => {
-                        println!("none somehow????");
                         None
                     },
                 })
@@ -199,9 +198,8 @@ impl Map {
 
             let new_blocking = {
                 current_projecting.iter().map(|tile| {
-                    println!("proj_dist: {}", *projecting_has_to_travel as usize);
                     // 1.
-                    tile.project(self, dbg!(Coordinate { row: 0, column: 0 }.step_several(current_direction, *projecting_has_to_travel)))
+                    tile.project(self, Coordinate { row: 0, column: 0 }.step_several(current_direction, *projecting_has_to_travel))
                 }).fold(Vec::new(), |mut acc: Vec<&Tile>, tiles| {
                     for tile in tiles {
                         if !acc.contains(&tile) && !current_target.contains(&tile) {
@@ -215,7 +213,7 @@ impl Map {
             };
             
             // 2.
-            let new_dist = dbg!(-calculate_travel(&new_blocking, target_pivot, current_direction, current_direction != direction));
+            let new_dist = -calculate_travel(&new_blocking, target_pivot, current_direction, current_direction != direction);
 
             // 3.
             if new_dist.abs() > projecting_has_to_travel.abs() {

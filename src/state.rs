@@ -1,4 +1,4 @@
-use std::{ffi::OsString, sync::Arc, time::Instant};
+use std::{ffi::OsString, sync::{Arc, OnceLock}, time::Instant};
 
 use smithay::{
     desktop::{PopupManager, Window}, input::{Seat, SeatState}, reexports::{
@@ -6,15 +6,17 @@ use smithay::{
             Display, DisplayHandle,
         },
     }, utils::{Logical, Physical, SERIAL_COUNTER, Scale, Size}, wayland::{
-        compositor::CompositorState, seat::WaylandFocus, selection::data_device::DataDeviceState, shell::xdg::{
+        compositor::CompositorState, output::OutputManagerState, seat::WaylandFocus, selection::data_device::DataDeviceState, shell::{wlr_layer::WlrLayerShellState, xdg::{
             XdgShellState,
             decoration::XdgDecorationState,
-        }, shm::ShmState, socket::ListeningSocketSource,
+        }}, shm::ShmState, socket::ListeningSocketSource,
     },
 };
 use wayfleet_config::Config;
 
 use crate::{handlers::ClientState, layout::controller::LayoutController};
+
+pub static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
 
 pub struct State {
     pub start_time: Instant,
@@ -24,7 +26,7 @@ pub struct State {
     pub layout: LayoutController,
     pub socket: OsString,
     pub output_state: OutputState,
-    pub config: Config,
+    pub config: Arc<Config>,
 
     // smithay state
     pub compositor: CompositorState,
@@ -35,6 +37,8 @@ pub struct State {
     pub decorations: XdgDecorationState,
     pub popups: PopupManager,
     pub data_device: DataDeviceState,
+    pub layer_state: WlrLayerShellState,
+    pub output_manager: OutputManagerState,
 }
 
 impl State {
@@ -77,6 +81,12 @@ impl State {
         let mut seats = SeatState::<Self>::new();
         let seat = seats.new_wl_seat(&display, "winit");
 
+        let config = Arc::new(config);
+
+        CONFIG.set(config.clone()).unwrap();
+
+        // let output_manager = display.create_global::<ZxdgOutputManagerV1, ()>(1, ());
+
         Self {
             loop_signal,
             start_time,
@@ -88,12 +98,14 @@ impl State {
             data_device: DataDeviceState::new::<Self>(&display),
             seats,
             decorations: XdgDecorationState::new::<Self>(&display),
-            display,
+            layer_state: WlrLayerShellState::new::<Self>(&display),
             socket: socket_name,
             output_state,
             seat,
             popups: PopupManager::default(),
             config,
+            output_manager: OutputManagerState::new_with_xdg_output::<Self>(&display),
+            display,
         }
     }
 
@@ -116,7 +128,7 @@ impl State {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OutputState {
     pub size: Size<i32, Physical>,
     pub scale_factor: i32,

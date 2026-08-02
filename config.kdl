@@ -4,21 +4,42 @@ input {
     }
 }
 
+startup {
+    // spawn "waybar"
+    spawn-sh "swaybg -i /home/arch/Pictures/wallpapers/wallhaven-sails-cropped.png"
+}
+
 layout {
+    decorations {
+        border {
+            active-color "#7fc8ff"
+            inactive-color "#505050"
+            width 0
+            corner-radius 3
+        }
+    }
+
     map {
         size {
             rows 3
-            columns "auto"
+            columns 5
         }
 
         cells {
-            width 400
             height 400
+            width 400
         }
 
         spaces { 
-            horizontal 10
-            vertical 10
+            horizontal 17
+            vertical 17
+        }
+
+        padding {
+            left 10
+            right 10
+            top 10
+            down 10
         }
     }
 
@@ -26,8 +47,15 @@ layout {
         height "auto"
 
         spaces { 
-            horizontal 10
-            vertical 10
+            horizontal 17
+            vertical 17
+        }
+
+        padding {
+            left 10
+            right 10
+            top 10
+            down 10
         }
     }
 }
@@ -36,6 +64,9 @@ keybinds {
     mod-key "ctrl"
 
     Mod+Return { spawn "alacritty"; }
+    Mod+Shift+Return { spawn-privileged "alacritty"; }
+    Mod+Alt+Return { spawn-map "alacritty"; }
+
     Mod+K      { spawn "kitty"; }
     Mod+F      { spawn "firefox"; }
 
@@ -46,10 +77,38 @@ keybinds {
     Mod+Right { move-focus-right; }
     Mod+Left  { move-focus-left; }
 
-    Mod+Shift+Up    { move-or-swap-up; }
-    Mod+Shift+Down  { move-or-swap-down; }
-    Mod+Shift+Right { move-or-swap-right; }
-    Mod+Shift+Left  { move-or-swap-left; }
+    Mod+Ctrl+Up    { move-or-swap-up; }
+    Mod+Ctrl+Down  { move-or-swap-down; }
+    Mod+Ctrl+Right { move-or-swap-right; }
+    Mod+Ctrl+Left  { move-or-swap-left; }
+
+    Mod+Shift+Up    { map-resize-add-up; }
+    Mod+Shift+Down  { map-resize-add-down; }
+    Mod+Shift+Right { map-resize-add-right; }
+    Mod+Shift+Left  { map-resize-add-left; }
+
+    Mod+Shift+Alt+Up    { map-resize-remove-up; }
+    Mod+Shift+Alt+Down  { map-resize-remove-down; }
+    Mod+Shift+Alt+Right { map-resize-remove-right; }
+    Mod+Shift+Alt+Left  { map-resize-remove-left; }
+
+    Mod+period { 
+        set-focused-cell-width "+10%"
+        set-privileged-window-width "+5%"
+    }
+    Mod+comma { 
+        set-focused-cell-width "-10%"
+        set-privileged-window-width "-5%"
+    }
+
+    Mod+Shift+period { 
+        set-focused-cell-height "+10%"
+        // set-privileged-window-height "+5%"
+    }
+    Mod+Shift+comma { 
+        set-focused-cell-height "-10%"
+        // set-privileged-window-height "-5%"
+    }
 
     // diag
     Mod+Alt+L { dump-layout; }

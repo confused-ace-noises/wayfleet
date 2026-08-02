@@ -58,17 +58,12 @@ impl<T: AnimationDriver> AnimationBase<T> {
 
         let time_norm = (partial.as_millis() as f64 / self.total_time.as_millis() as f64).min(1.);
 
-        let mut finish = false;
-
-        if time_norm >= 0.99 {
-            finish = true;
-        }
+        let finish = time_norm >= 0.99;
 
         if !finish {
             let state_norm = (self.easing.func())(time_norm);
     
             let lerped = T::Value::lerp(&self.start, &self.end, state_norm);
-            
             
             self.driver.drive(&lerped, &self.window, space);
             self.last_value = Some(lerped);

@@ -1,22 +1,49 @@
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 
 use smithay::{
     backend::{
         renderer::{
-            damage::OutputDamageTracker, element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer,
-        }, winit::{self, WinitEvent},
-    }, output::{Mode, Output, PhysicalProperties, Subpixel}, reexports::{calloop::EventLoop, wayland_server::Display}, utils::Transform,
+            damage::OutputDamageTracker,
+            element::surface::WaylandSurfaceRenderElement,
+            gles::{GlesPixelProgram, GlesRenderer, UniformName, UniformType},
+        },
+        winit::{self, WinitEvent},
+    },
+    desktop::layer_map_for_output,
+    output::{Mode, Output, PhysicalProperties, Subpixel},
+    reexports::{
+        calloop::EventLoop,
+        wayland_server::Display,
+    },
+    utils::Transform,
 };
 use wayfleet_config::Config;
 
 use crate::state::{OutputState, State};
+
+pub static BORDER_SHADER: OnceLock<GlesPixelProgram> = OnceLock::new();
 
 pub fn init_winit(
     event_loop: &mut EventLoop<'static, State>,
     display: Display<State>,
     config: Config,
 ) -> Result<State, Box<dyn std::error::Error>> {
-    let (mut backend, winit) = winit::init()?;
+    let (mut backend, winit) = winit::init::<GlesRenderer>()?;
+
+    let shader = backend
+        .renderer()
+        .compile_custom_pixel_shader(
+            include_str!("shaders/border.glsl"),
+            &[
+                UniformName::new("border_color", UniformType::_4f),
+                UniformName::new("border_thickness", UniformType::_1f),
+                UniformName::new("corner_radius", UniformType::_1f),
+            ],
+        )
+        .inspect_err(|x| eprintln!("{x}"))
+        .unwrap();
+
+    BORDER_SHADER.set(shader).unwrap();
 
     let size = backend.window_size();
     let scale_factor = backend.scale_factor() as i32;
@@ -43,7 +70,7 @@ pub fn init_winit(
         changed: false,
     };
 
-    println!("{:?}", output_state);
+    // OutputManager
 
     let mut state = State::new(event_loop, display, config, output_state);
 
@@ -57,6 +84,7 @@ pub fn init_winit(
     output.set_preferred(mode);
 
     state.layout.space.map_output(&output, (0, 0));
+    // let x = ZxdgOutputManagerV1::from(value);
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
 
@@ -65,8 +93,6 @@ pub fn init_winit(
         .insert_source(winit, move |event, _, state| {
             match event {
                 WinitEvent::Resized { size, .. } => {
-                    
-
                     output.change_current_state(
                         Some(Mode {
                             size,
@@ -79,9 +105,11 @@ pub fn init_winit(
                 }
                 WinitEvent::Input(event) => state.run_input(event),
                 WinitEvent::Redraw => {
+                    // let layer_map = layer_map_for_output(&output);
+
                     let render_result = {
                         let (renderer, mut framebuffer) = backend.bind().unwrap();
-                    
+
                         smithay::desktop::space::render_output::<
                             _,
                             WaylandSurfaceRenderElement<GlesRenderer>,
@@ -114,6 +142,16 @@ pub fn init_winit(
                         )
                     });
 
+                    let map = layer_map_for_output(&output);
+                    for layer in map.layers() {
+                        layer.send_frame(
+                            &output,
+                            state.start_time.elapsed(),
+                            Some(Duration::ZERO),
+                            |_, _| Some(output.clone()),
+                        );
+                    }
+
                     state.layout.space.refresh();
                     state.popups.cleanup();
                     let _ = state.display.flush_clients();
@@ -124,7 +162,25 @@ pub fn init_winit(
                 WinitEvent::CloseRequested => {
                     state.loop_signal.stop();
                 }
-                _ => (),
+
+                WinitEvent::Focus(_) => {
+                    // ? NOTE: due to a known bug in the `winit` implementation
+                    // ? of keyboard state modifiers, if the window of our nested
+                    // ? compositor (running with the winit backend) goes from a focused to
+                    // ? an unfocused state, and while in the unfocused state the state of a mod
+                    // ? key changes, this change WILL NOT be registered and we'll end up
+                    // ? with an unsync'd ModifiersState. This also means, for example,
+                    // ? that if we're using a compositor that uses a Super+<Direction> keybind
+                    // ? to change the focus, the Super key will be pressed while in our compositor's
+                    // ? window, and then will be released once our compositor's window loses focus.
+                    // ? Now the states are unsync'd, but if the compositor's window is re-focused
+                    // ? while pressing Super, this will then depress in our window and fix the
+                    // ? broken state. If this doesn't happen, because, for example, the window is
+                    // ? re-focused by clicking on it, the Super key will be stuck in a pressed
+                    // ? state and everything will be completely off. I have no idea of how to fix
+                    // ? this, for the time being, it'll be broken.
+                    // ? refer to: https://github.com/Smithay/smithay/issues/1353
+                }
             };
         })?;
 

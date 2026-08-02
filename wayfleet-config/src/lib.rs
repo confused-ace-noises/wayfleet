@@ -3,7 +3,7 @@ use std::{cell::RefCell, fs, path::Path, rc::Rc};
 use knus::{Decode, DecodeScalar, span::Span, traits::ErrorSpan};
 use miette::{NamedSource, SourceSpan};
 
-use crate::{amount::Amount, error::ConfigError, input::Input, keybinds::KeyBinds, map::MapSpanned, padding::Padding, size::{Size, Spaces}};
+use crate::{amount::Amount, decorations::Decorations, error::ConfigError, input::Input, keybinds::KeyBinds, map::MapSpanned, padding::Padding, size::{Size, Spaces}, startup::Startup};
 
 pub mod size;
 pub mod amount;
@@ -12,6 +12,8 @@ pub mod map;
 pub mod error;
 pub mod keybinds;
 pub mod input;
+pub mod decorations;
+pub mod startup;
 
 pub use map::Map;
 
@@ -25,7 +27,10 @@ pub struct Config {
     pub layout: Layout,
 
     #[knus(child)]
-    pub keybinds: KeyBinds
+    pub keybinds: KeyBinds,
+
+    #[knus(child, default)]
+    pub startup: Startup,
 }
 
 impl Config {
@@ -53,17 +58,18 @@ impl Config {
 
 #[derive(Debug)]
 pub struct Layout {
+    pub decorations: Decorations,
     pub map: Map,
     pub privileged: Privileged,
 }
 
 impl LayoutSpanned {
     pub fn into_layout(self, src: &NamedSource<String>) -> Result<Layout, ConfigError> {
-        let LayoutSpanned { map, privileged } = self;
+        let LayoutSpanned { map, privileged, decorations } = self;
 
         let map = map.into_map(src)?;
 
-        Ok(Layout { map, privileged })
+        Ok(Layout { map, privileged, decorations })
     }
 }
 
@@ -80,7 +86,7 @@ impl<S: ErrorSpan> Decode<S> for Layout {
             Err(config_err) => {
                 // HACK: couldn't find any way to carry rich miette info out of this function,
                 // so the error is pushed to a vector through the context, and the toplevel parser is
-                // responsible for 
+                // responsible for handling it
                 let errors: &Rc<RefCell<Vec<ConfigError>>> = ctx.get::<Rc<RefCell<Vec<ConfigError>>>>().unwrap();
                 let mut borrow = errors.borrow_mut();
 
@@ -89,8 +95,9 @@ impl<S: ErrorSpan> Decode<S> for Layout {
                 drop(borrow);
 
                 let dummy_layout = Layout {
-                    map: Map { size: Default::default(), cells: Default::default(), spaces: Default::default(), margins: Default::default() },
+                    map: Map { size: Default::default(), cells: Default::default(), spaces: Default::default(), padding: Default::default() },
                     privileged: Privileged::dummy(),
+                    decorations: Decorations::dummy(),
                 };
 
                 Ok(dummy_layout)
@@ -102,7 +109,9 @@ impl<S: ErrorSpan> Decode<S> for Layout {
 
 #[derive(Debug, Decode)]
 struct LayoutSpanned {
-    // pub screen: Screen,
+    #[knus(child)]
+    pub decorations: Decorations,
+
     #[knus(child)]
     pub map: MapSpanned,
     #[knus(child)]

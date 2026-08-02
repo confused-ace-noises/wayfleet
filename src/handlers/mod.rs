@@ -4,6 +4,8 @@ use crate::state::State;
 
 pub mod compositor;
 pub mod xdg_shell;
+pub mod layer_shell;
+pub mod xwayland;
 
 impl ShmHandler for State {
     fn shm_state(&self) -> &ShmState {

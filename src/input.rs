@@ -2,16 +2,20 @@ use std::process::{Command, Stdio};
 
 use smithay::{
     backend::input::{
-        AbsolutePositionEvent, Axis, AxisSource, ButtonState, Device, Event, InputBackend, InputEvent, KeyState, KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent,
-    }, input::{
-        keyboard::{FilterResult, KeysymHandle, ModifiersState, XkbConfig}, pointer::{AxisFrame, ButtonEvent, MotionEvent},
-    }, utils::SERIAL_COUNTER, wayland::seat::WaylandFocus,
+        AbsolutePositionEvent, Axis, AxisSource, ButtonState, Device, Event, InputBackend,
+        InputEvent, KeyState, KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent,
+    },
+    input::{
+        keyboard::{FilterResult, KeysymHandle, ModifiersState, XkbConfig},
+        pointer::{AxisFrame, ButtonEvent, MotionEvent},
+    },
+    utils::SERIAL_COUNTER,
+    wayland::seat::WaylandFocus,
 };
-use wayfleet_config::keybinds::{KeyBind, KeyCombo, Modifiers, Trigger};
+use wayfleet_config::keybinds::{Action, KeyBind, KeyCombo, Modifiers, Trigger};
 
 use crate::{
-    layout::{controller::LayoutController, map::coordinate::Direction},
-    state::State,
+    layout::{controller::{ForceSpawn, LayoutController}, map::coordinate::Direction}, state::State,
 };
 
 impl State {
@@ -44,6 +48,7 @@ impl State {
                 if let Some(kb) = self.seat.get_keyboard() {
                     let keycode = event.key_code();
                     let state = event.state();
+
                     if let Some(bind) = kb.input(
                         self,
                         keycode,
@@ -51,8 +56,8 @@ impl State {
                         SERIAL_COUNTER.next_serial(),
                         event.time_msec(),
                         kb_filter,
-                    )
-                    && state == KeyState::Pressed {
+                    ) && state == KeyState::Pressed
+                    {
                         handle_keybind(self, bind);
                     }
                 }
@@ -95,17 +100,28 @@ impl State {
 
                     let button_state = event.state();
 
-                    if ButtonState::Pressed == button_state && !pointer.is_grabbed()
+                    if ButtonState::Pressed == button_state
+                        && !pointer.is_grabbed()
                         && let Some(window) = self
                             .layout
                             .find_window(pointer.current_location().to_i32_round())
                             .cloned()
-                        // .space
-                        // .element_under(pointer.current_location())
-                        // .map(|(w, l)| (w.clone(), l))
+                    // .space
+                    // .element_under(pointer.current_location())
+                    // .map(|(w, l)| (w.clone(), l))
                     {
-                        
-                        self.layout.space.raise_element(&window, false); // gets activated by layout
+                        if self
+                            .popups
+                            .find_popup(&window.wl_surface().unwrap())
+                            .is_some()
+                        {
+                            // only raise popups because otherwise map windows getting cropped to not
+                            // bleed into the privileged area would raise above the privileged area
+                            // and steal foucs. By not raising it, LayoutController always knows
+                            // what z index every map and every privileged window is.
+                            self.layout.space.raise_element(&window, true);
+                        }
+
                         // TODO: hanle popups
                         LayoutController::new_focus(self, window);
                     };
@@ -177,14 +193,11 @@ pub fn kb_filter(
         modifiers |= Modifiers::DEFAULT;
     }
 
-
     let Some(raw) = keysym.raw_latin_sym_or_raw_current_sym() else {
         return FilterResult::Forward;
     };
 
     let trigger = Trigger::Keysym(raw);
-
-    println!("{:?}", trigger);
 
     let keycombo = KeyCombo { modifiers, trigger };
 
@@ -193,93 +206,174 @@ pub fn kb_filter(
         .keybinds
         .keybinds
         .iter()
-        .find(|x| x.combo.is_it(&keycombo, state.config.keybinds.mod_key) )
+        .find(|x| x.combo.is_it(&keycombo, state.config.keybinds.mod_key))
     else {
         return FilterResult::Forward;
     };
-
-    println!("match!!!!");
 
     FilterResult::Intercept(keybind.clone())
 }
 
 pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
-    let keybind = dbg!(keybind);
+    // let keybind = dbg!(keybind);
 
-    match keybind.action {
-        // * move focus
-        wayfleet_config::keybinds::Action::MoveFocusUp => {
-            LayoutController::move_focus(state, Direction::Up)
-        }
-        wayfleet_config::keybinds::Action::MoveFocusDown => {
-            LayoutController::move_focus(state, Direction::Down)
-        }
-        wayfleet_config::keybinds::Action::MoveFocusRight => {
-            LayoutController::move_focus(state, Direction::Right)
-        }
-        wayfleet_config::keybinds::Action::MoveFocusLeft => {
-            println!("moving focus");
-            LayoutController::move_focus(state, Direction::Left)
-        }
+    let socket = state.socket.clone();
+    let spawn = |command: &mut Command| {
+        let _ = command
+            .env("WAYLAND_DISPLAY", &socket)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+    };
 
-        // * move (map) or swap (map & privileged) window
-        wayfleet_config::keybinds::Action::MoveOrSwapUp => state.layout.swap_focused(Direction::Up),
-        wayfleet_config::keybinds::Action::MoveOrSwapDown => state.layout.swap_focused(Direction::Down),
-        wayfleet_config::keybinds::Action::MoveOrSwapRight => state.layout.swap_focused(Direction::Right),
-        wayfleet_config::keybinds::Action::MoveOrSwapLeft => state.layout.swap_focused(Direction::Left),
+    for action in keybind.actions {
+        match action {
+            // * move focusthread_local! {}
+            Action::MoveFocusUp => LayoutController::move_focus(state, Direction::Up),
+            Action::MoveFocusDown => LayoutController::move_focus(state, Direction::Down),
+            Action::MoveFocusRight => LayoutController::move_focus(state, Direction::Right),
+            Action::MoveFocusLeft => LayoutController::move_focus(state, Direction::Left),
 
-        // * move and shift in map, absorb/eject from columns in privileged
-        wayfleet_config::keybinds::Action::PushLateralRight => {
-            println!("doing right");    
-            state.layout.push_privileged_laterally(Direction::Right)
-        
-        },
-        wayfleet_config::keybinds::Action::PushLateralLeft  => {
-            println!("doing left");    
-            state.layout.push_privileged_laterally(Direction::Left)
-        },
+            // * move (map) or swap (map & privileged) window
+            Action::MoveOrSwapUp => state.layout.swap_focused(Direction::Up),
+            Action::MoveOrSwapDown => state.layout.swap_focused(Direction::Down),
+            Action::MoveOrSwapRight => state.layout.swap_focused(Direction::Right),
+            Action::MoveOrSwapLeft => state.layout.swap_focused(Direction::Left),
 
-        // TODO: reap child processes or find a way of using double forking
-        // ? note: current fix has just been by setting the action for 
-        // ?       SICHLD to be SA_NOCLDWAIT, which just closes the 
-        // ?       child process w/o making zombies
-        wayfleet_config::keybinds::Action::Spawn(items) => {
-            let (command, args) = items.split_first().unwrap();
+            Action::MoveFocusedToOtherArea => state.layout.move_focused_to_other_area(),
 
-            let _ = Command::new(command)
-                .args(args)
-                .env("WAYLAND_DISPLAY", &state.socket)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
-        }
-        wayfleet_config::keybinds::Action::SpawnSh(string) => {
-            let _ = Command::new("sh")
-                .arg("-c")
-                .arg(string)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
-        }
+            // * move and shift in map, absorb/eject from columns in privileged
+            Action::PushLateralRight => state.layout.push_privileged_laterally(Direction::Right),
+            Action::PushLateralLeft => state.layout.push_privileged_laterally(Direction::Left),
+            
+            // * resize window
+            // TODO: add resize for privileged
+            Action::SetPrivilegedWindowHeight(a) => state.layout.resize_focused_window_privileged(a, false),
+            Action::SetPrivilegedWindowWidth(a)  => state.layout.resize_focused_window_privileged(a, true),
+            
+            Action::MapResizeAddUp       => { state.layout.change_cell_size_map_if_focused(Direction::Up,    false); },
+            Action::MapResizeAddDown     => { state.layout.change_cell_size_map_if_focused(Direction::Down,  false); },
+            Action::MapResizeAddRight    => { state.layout.change_cell_size_map_if_focused(Direction::Right, false); },
+            Action::MapResizeAddLeft     => { state.layout.change_cell_size_map_if_focused(Direction::Left,  false); },
+            Action::MapResizeRemoveUp    => { state.layout.change_cell_size_map_if_focused(Direction::Up,    true);  },
+            Action::MapResizeRemoveDown  => { state.layout.change_cell_size_map_if_focused(Direction::Down,  true);  },
+            Action::MapResizeRemoveRight => { state.layout.change_cell_size_map_if_focused(Direction::Right, true);  },
+            Action::MapResizeRemoveLeft  => { state.layout.change_cell_size_map_if_focused(Direction::Left,  true);  },
+            
+            // * resize cells
+            Action::SetMapCellHeight(amount) => state.layout.resize_cells_map(amount, true),
+            Action::SetMapCellWidth(amount) => state.layout.resize_cells_map(amount, false),
 
-        wayfleet_config::keybinds::Action::CloseWindow => {
-            // state.layout.
-            let current_focus = state.layout.currently_focused().cloned();
-
-            if let Some(ref focued) = current_focus {
-                LayoutController::remove(state, focued);
+            Action::SetPrivilegedCellHeight(amount) => {
+                state.layout.resize_column_height_privileged(amount)
             }
-        },
-        wayfleet_config::keybinds::Action::Quit => {
-            state.loop_signal.stop();
-        },
-        wayfleet_config::keybinds::Action::None => {},
-        
-        // * Diag
-        wayfleet_config::keybinds::Action::DumpMap => println!("dump-map was called: {:?}", state.layout.map),
-        wayfleet_config::keybinds::Action::DumpPrivileged => println!("dump-privileged was called: {:?}", state.layout.privileged),
-        wayfleet_config::keybinds::Action::DumpLayout => println!("dump-layout was called: {:?}", state.layout),
+
+            Action::SetFocusedCellHeight(amount) => state.layout.resize_cells_focused(amount, true),
+            Action::SetFocusedCellWidth(amount) => state.layout.resize_cells_focused(amount, false),
+
+            // FIXME: this is hortrbile.
+            Action::MapAddColumn => {
+                state.layout.map.columns += 1;
+                state.layout.map.recalculate_available();
+            },
+            Action::MapAddRow => {
+                state.layout.map.rows += 1;
+                state.layout.map.recalculate_available();
+            }
+            Action::MapRemoveColumn => {
+                let mut x = 0;
+                let mut iter = std::iter::from_fn(|| {
+                    let out = state.layout.map.map.get(x)?.last()?;
+                    x += 1;
+                    Some(out)
+                });
+
+                if !iter.any(|x| x.is_some()) {
+                    state.layout.map.columns -= 1;
+                    state.layout.map.recalculate_available();
+                }
+
+            }
+            Action::MapRemoveRow => {
+                if let Some(last_row) = state.layout.map.map.last() && !last_row.iter().any(|el| el.is_some()) {
+                    state.layout.map.rows -= 1;
+                    state.layout.map.recalculate_available();
+                }
+            }
+
+            // * spawning
+            // TODO: reap child processes or find a way of using double forking
+            // ? note: current fix has just been by setting the action for
+            // ?       SICHLD to be SA_NOCLDWAIT, which just closes the
+            // ?       child process w/o making zombies
+            Action::Spawn(items) => {
+                let (command, args) = items.split_first().unwrap();
+
+                spawn(Command::new(command).args(args));
+            }
+            Action::SpawnSh(string) => {
+                spawn(Command::new("sh").arg("-c").arg(string));
+            }
+
+            Action::SpawnPrivileged(items) => {
+                state.layout.forced_windows.push_back(ForceSpawn::Priv);
+
+                let (command, args) = items.split_first().unwrap();
+
+                spawn(
+                    Command::new(command)
+                        .args(args)
+                        .env("WAYLAND_DISPLAY", &state.socket),
+                );
+            }
+            Action::SpawnPrivilegedSh(string) => {
+                state.layout.forced_windows.push_back(ForceSpawn::Priv);
+
+                spawn(Command::new("sh").arg("-c").arg(string))
+            }
+
+            Action::SpawnMap(items) => {
+                state.layout.forced_windows.push_back(ForceSpawn::Map);
+
+                let (command, args) = items.split_first().unwrap();
+
+                spawn(
+                    Command::new(command)
+                        .args(args)
+                        .env("WAYLAND_DISPLAY", &state.socket),
+                );
+            }
+            Action::SpawnMapSh(string) => {
+                state.layout.forced_windows.push_back(ForceSpawn::Map);
+
+                spawn(Command::new("sh").arg("-c").arg(string))
+            }
+
+            Action::CloseWindow => {
+                // state.layout.
+                let current_focus = state.layout.currently_focused().cloned();
+
+                if let Some(ref focued) = current_focus {
+                    LayoutController::remove(state, focued);
+
+                    if let Some(x) = focued.toplevel() {
+                        x.send_close()
+                    }
+                }
+            }
+            Action::Quit => {
+                state.loop_signal.stop();
+            }
+            Action::None => {}
+
+            // * Diag
+            Action::DumpMap => println!("dump-map was called: {:?}", state.layout.map),
+            Action::DumpPrivileged => {
+                println!("dump-privileged was called: {:?}", state.layout.privileged)
+            }
+            Action::DumpLayout => println!("dump-layout was called: {:?}", state.layout),
+            
+        }
     }
 }

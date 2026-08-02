@@ -181,7 +181,7 @@ impl Privileged {
             let destination_len_old = self.privileged[new_column_idx].len() as i32;
 
             // give rough height first, get back the actual new space available after
-            let rough_height = self.viewport.size.h / (destination_len_old + 1) as i32;
+            let rough_height = self.viewport.read().unwrap().size.h / (destination_len_old + 1) as i32;
 
             let actual_height = -self.recalc_heights(
                 new_column_idx,
@@ -251,7 +251,7 @@ impl Privileged {
                 space,
             );
 
-            let size = Size::new(to_expel.size.w, self.viewport.size.h);
+            let size = Size::new(to_expel.size.w, self.viewport.read().unwrap().size.h);
 
             to_expel.size = size;
 

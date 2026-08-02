@@ -11,9 +11,6 @@ impl XdgShellHandler for State {
     fn new_toplevel(&mut self, surface: smithay::wayland::shell::xdg::ToplevelSurface) {
         let map = &mut self.layout.map;
 
-        surface.with_pending_state(|state| {
-            state.size = Some(map.get_size());
-        });
         surface.send_configure();
 
         let window = Window::new_wayland_window(surface);
@@ -23,7 +20,7 @@ impl XdgShellHandler for State {
             crate::layout::controller::Focus::Privileged(window) => Some(window.clone())  ,
         };
         // dbg!(&window);
-        self.layout.insert_by_focus(window.clone());
+        self.layout.insert_by_focus_w_forcing(window.clone());
         
         if let Some(old) = old_window {
             self.refocus(&old, &window);
@@ -46,6 +43,7 @@ impl XdgShellHandler for State {
         self.popups.track_popup(PopupKind::Xdg(surface)).unwrap();
     }
 
+    #[allow(clippy::todo)]
     fn grab(
         &mut self,
         surface: smithay::wayland::shell::xdg::PopupSurface,
@@ -55,6 +53,7 @@ impl XdgShellHandler for State {
         todo!()
     }
 
+    #[allow(clippy::todo)]
     fn reposition_request(
         &mut self,
         surface: smithay::wayland::shell::xdg::PopupSurface,

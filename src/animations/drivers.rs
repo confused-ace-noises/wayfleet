@@ -20,6 +20,9 @@ impl AnimationDriver for MoveAnimation {
     type Value = Point<i32, Logical>;
 
     fn drive(&mut self, value: &Self::Value, window: &WayfleetWindow, space: &mut Space<WayfleetWindow>) {
+        let mut lock = window.specific_crop.write().unwrap();
+        lock.loc = *value;
+
         space.relocate_element(window, *value);
     }
 
@@ -47,6 +50,8 @@ impl AnimationDriver for ResizeAnimation {
     type Value = Size<i32, Logical>;
 
     fn drive(&mut self, value: &Self::Value, window: &WayfleetWindow, _: &mut Space<WayfleetWindow>) {
+        let mut lock = window.specific_crop.write().unwrap();
+        lock.size = *value;
         LayoutController::resize(window, ResizeType::Both(*value));
     }
 

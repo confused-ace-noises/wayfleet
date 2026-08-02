@@ -7,6 +7,8 @@ use smithay::input::keyboard::ModifiersState;
 use xkbcommon::xkb::{KEYSYM_CASE_INSENSITIVE, keysym_from_name, keysyms::KEY_NoSymbol};
 use xkeysym::Keysym;
 
+use crate::amount::SetSizeAmount;
+
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct Modifiers : u8 {
@@ -133,7 +135,6 @@ impl FromStr for Trigger {
         match s {
             key => {
                 let keysym = keysym_from_name(key, KEYSYM_CASE_INSENSITIVE);
-                println!("{keysym:?}");
                 if keysym.raw() == KEY_NoSymbol {
                     return Err(miette!("invalid key: {key}"));
                 }
@@ -208,17 +209,49 @@ pub enum Action {
     MoveOrSwapRight,
     MoveOrSwapLeft,
 
+    MoveFocusedToOtherArea,
+
     // * push laterally in privileged
     PushLateralRight,
     PushLateralLeft,
 
     // * Resize windows
-    // ChangeWindowHeight(#[knus(argument)] String),
-    // ChangeWindowWidth(#[knus(argument)] String),
+    SetPrivilegedWindowHeight(#[knus(argument)] SetSizeAmount),
+    SetPrivilegedWindowWidth(#[knus(argument)] SetSizeAmount),
+
+    MapResizeAddUp,
+    MapResizeAddDown,
+    MapResizeAddRight,
+    MapResizeAddLeft,
+
+    MapResizeRemoveUp,
+    MapResizeRemoveDown,
+    MapResizeRemoveRight,
+    MapResizeRemoveLeft,
+
+    // * Resize cells
+    SetMapCellHeight(#[knus(argument)] SetSizeAmount),
+    SetMapCellWidth(#[knus(argument)] SetSizeAmount),
+
+    SetPrivilegedCellHeight(#[knus(argument)] SetSizeAmount),
+
+    SetFocusedCellHeight(#[knus(argument)] SetSizeAmount),
+    SetFocusedCellWidth(#[knus(argument)] SetSizeAmount),
+
+    MapAddColumn,
+    MapAddRow,
+    MapRemoveColumn,
+    MapRemoveRow,
 
     // * spawn
     Spawn(#[knus(arguments)] Vec<String>),
     SpawnSh(#[knus(argument)] String),
+
+    SpawnPrivileged(#[knus(arguments)] Vec<String>),
+    SpawnPrivilegedSh(#[knus(argument)] String),
+    
+    SpawnMap(#[knus(arguments)] Vec<String>),
+    SpawnMapSh(#[knus(argument)] String),
 
     // * misc
     CloseWindow,
@@ -245,7 +278,7 @@ pub struct KeyBinds {
 #[derive(Debug, Clone)]
 pub struct KeyBind {
     pub combo: KeyCombo,
-    pub action: Action,
+    pub actions: Vec<Action>,
 }
 
 impl<S: ErrorSpan> Decode<S> for KeyBind {
@@ -279,18 +312,18 @@ impl<S: ErrorSpan> Decode<S> for KeyBind {
             .parse::<KeyCombo>()
             .map_err(|e| DecodeError::conversion(&node.node_name, e.wrap_err("invalid keybind")))?;
 
-        let mut children = node.children();
-
-        let mut action = Action::None;
-
-        if let Some(child) = children.next() {
-            action = Action::decode_node(child, ctx)?;
-        } else {
-            ctx.emit_error(DecodeError::missing(node, "expected an action for this keybind"));
+        let children = node.children();
+        
+        if children.len() == 0 {
+            ctx.emit_error(DecodeError::missing(node, "expected at least one action for this keybind"));
         }
 
+        let actions = children
+            .map(|x| Action::decode_node(x, ctx))
+            .collect::<Result<Vec<Action>, _>>()?;
+
         Ok(Self {
-            action,
+            actions,
             combo: key_combo
         })
     }

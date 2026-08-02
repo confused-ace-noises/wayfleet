@@ -23,7 +23,6 @@ pub struct Map {
     pub cell_height: i32,
     pub cell_width: i32,
     pub spaces: Spaces,
-    pub offset: Point<i32, Logical>,
     pub animation: AnimationHandle,
     pub focus: Option<Coordinate>,
     pub viewport_offset: Point<i32, Logical>,
@@ -34,14 +33,15 @@ impl Map {
     pub fn new(
         config: &wayfleet_config::Map,
         animation: AnimationHandle,
-        OutputState { size: output_size, scale_factor, ..}: &OutputState,
+        OutputState { size: output_size, scale_factor, .. }: &OutputState,
         privileged_offset: i32
     ) -> Self {
-        let wayfleet_config::Map { size, cells, spaces, margins: _ } = config;
+        let wayfleet_config::Map { size, cells, spaces, padding } = config;
 
         let mut output_size = output_size.to_logical(*scale_factor);
 
-        output_size.h -= privileged_offset;
+        output_size.h -= privileged_offset + padding.top + padding.down;
+        output_size.w -= padding.left + padding.right;
 
         let spaces = (*spaces).unwrap_or_else(|| Spaces { horizontal: 0, vertical: 0} );
 
@@ -109,7 +109,7 @@ impl Map {
 
         // TODO: proper margins
 
-        let viewport = Rectangle { loc: Point::new(0, privileged_offset) , size: output_size };
+        let viewport = Rectangle { loc: Point::new(padding.left, privileged_offset + padding.top) , size: output_size };
 
         Self {
             map: vec![vec![None; columns]; rows],
@@ -119,7 +119,6 @@ impl Map {
             cell_height,
             cell_width,
             spaces,
-            offset: viewport.loc,
             animation,
             focus: None,
             viewport_offset: Point::new(0, 0),

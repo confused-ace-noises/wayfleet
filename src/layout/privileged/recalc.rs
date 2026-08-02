@@ -10,52 +10,19 @@ use crate::{
 };
 
 impl Privileged {
-    pub fn recalc_widths(&mut self, total_delta: i32, space: &Space<WayfleetWindow>) {
-        let columns = self.privileged.len() as i32;
-        if columns == 0 {
-            return;
-        }
-
-        let deltas = split_evenly(total_delta, columns);
-        let mut animation = self.animation.write().unwrap();
-        let mut pos = 0;
-
-        for (col, delta) in self.privileged.iter_mut().zip(deltas) {
-            let mut pos_y = 0;
-            for tile in col.iter_mut() {
-                tile.size.w += delta;
-                let mut size = Size::new(0, 0);
-
-                size.w += delta;
-
-                animation.schedule::<ResizeAnimation>(
-                    InfoType::Delta(size), 
-                    tile.clone(), 
-                    space, 
-                    Duration::from_millis(150), 
-                    Easing::EaseInOut
-                );
-
-                animation.schedule::<MoveAnimation>(
-                    InfoType::Final(Point::new(pos, pos_y)),
-                    tile.clone(),
-                    space,
-                    Duration::from_millis(150),
-                    Easing::EaseInOut,
-                );
-
-                pos_y += tile.size.h + self.spaces.vertical as i32;
-            }
-            pos += col[0].size.w + self.spaces.horizontal as i32;
-        }
-    }
 
     /// call BEFORE adding
     /// call AFTER removing
     /// returns actual delta
     pub fn recalc_heights(&mut self, column: usize, total_delta: i32, space: &Space<WayfleetWindow>) -> i32 {
-        let pos_x: i32 = self.privileged.iter().take(column).map(|x| x[0].size.w + self.spaces.horizontal as i32).sum::<i32>() - self.right_shift;
+        // let pos_x: i32 = self.privileged
+        //     .iter()
+        //     .take(column)
+        //     .map(|x| x[0].size.w + self.spaces.horizontal as i32)
+        //     .sum::<i32>() - self.right_shift; // TODO test if this works with get_position_shifted
         
+        let pos_x = self.get_point_tuple_shifted((column, 0)).x;
+
         let column = &mut self.privileged[column];
         let len = column.len() as i32;
 
@@ -66,7 +33,7 @@ impl Privileged {
         let deltas = split_evenly(total_delta, len);
 
         let mut animation = self.animation.write().unwrap();
-        let mut pos = 0;
+        let mut pos = self.viewport.read().unwrap().loc.y;
         let mut tot = 0;
 
         for (tile, delta) in column.iter_mut().zip(deltas) {
@@ -100,7 +67,8 @@ impl Privileged {
 }
 
 /// splits accounting for integer division rounding
-fn split_evenly(total: i32, n: i32) -> impl Iterator<Item = i32> {
+#[inline]
+pub(super) fn split_evenly(total: i32, n: i32) -> impl Iterator<Item = i32> {
     let base = total / n;
     let rem = ((total * total.signum()) % n) as usize;
 

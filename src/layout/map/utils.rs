@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use smithay::{
     desktop::{Space, Window},
@@ -95,8 +95,8 @@ impl Map {
 
     pub fn get_position_raw(&self, Coordinate { row, column }: Coordinate) -> Point<i32, Logical> {
         Point::new(
-            column * self.cell_width + (column) * self.spaces.horizontal as i32 + self.offset.x,
-            row * self.cell_height + (row) * self.spaces.vertical as i32 + self.offset.y,
+            column * self.cell_width + (column) * self.spaces.horizontal as i32 + self.viewport.loc.x,
+            row * self.cell_height + (row) * self.spaces.vertical as i32 + self.viewport.loc.y,
         ) + Point::new(column.signum(), row.signum())
     }
 
@@ -157,19 +157,24 @@ impl Map {
     }
 
     pub fn search_tile(&self, searched_window: &WayfleetWindow) -> Option<Coordinate> {
+        self.search_tile_window(&searched_window.window)
+    }
+    
+    pub fn search_tile_window(&self, searched: &Window) -> Option<Coordinate> {
         for r in 0..self.rows {
             for c in 0..self.columns {
                 let coord = (r as i32, c as i32).into();
                 if let Some(Tile { window, .. }) = &self[&coord]
-                    && *window == *searched_window
+                    && *window == *searched
                 {
                     return Some(coord);
                 }
             }
         }
-
+    
         None
-    }
+
+    }    
 
     pub fn directional_search(
         &self,
@@ -264,8 +269,6 @@ impl Map {
             .filter_map(|x| {
                 let tile = self[&x].as_ref()?;
 
-                println!("found tile: {tile:?}");
-
                 let coordinate = match tile.tile_type {
                     TileType::Leader { coord, .. } => coord,
                     TileType::Regular(coord) => coord,
@@ -282,7 +285,6 @@ impl Map {
             })
             .into_iter()
             .map(|x| {
-                println!("unique leaders print {x:?}");
                 self[&x].as_ref().unwrap()
             })
             .collect::<Vec<_>>()
@@ -312,8 +314,8 @@ impl Map {
             x: left, y: top, ..
         } = self.get_position_raw(*coord);
 
-        let bottom = top + self.cell_height * (2 * (*rows as i32) + 1);
-        let right = left + self.cell_width * (2 * (*cols as i32) + 1);
+        let bottom = top + self.cell_height * ((*rows as i32) + 1);
+        let right = left + self.cell_width * ((*cols as i32) + 1);
 
         let vp_left = rect.loc.x;
         let vp_top = rect.loc.y;
@@ -341,154 +343,30 @@ impl Map {
         } else {
             Err(Point::new(delta_x, delta_y))
         }
-
-        /*
-        match (rect.contains(top_left), rect.contains(top_right), rect.contains(bottom_left), rect.contains(bottom_right)) {
-            (true, true, true, true) => {},
-            (true, true, true, false) => unreachable!(),
-            (true, true, false, true) => unreachable!(),
-            (true, true, false, false) => {
-                // bottom side of window is outside on the bottom part of the rect
-                let bottom_rect = rect.loc.y + rect.size.h;
-
-                y_movement += bottom_rect - bottom_left.y;
-            },
-            (true, false, true, true) => unreachable!(),
-            (true, false, true, false) => {
-                // right side of window is outside in the right side of the rect
-                let right_rect = rect.loc.x + rect.size.w;
-
-                x_movement += right_rect - top_right.x;
-            },
-            (true, false, false, true) => unreachable!(), // i think?
-            (true, false, false, false) => {
-                // top left corner is the only one in the rect, all other verts are outside the bottom right
-                let bottom_right_rect = rect.loc + rect.size.to_point();
-
-                let diff = bottom_right_rect - bottom_right;
-
-                x_movement += diff.x;
-                y_movement += diff.y;
-            },
-            (false, true, true, true) => unreachable!(),
-            (false, true, true, false) => unreachable!(),
-            (false, true, false, true) => {
-                // left part of window is outside on the left part of the rect
-                let left_rect = rect.loc.x;
-
-                x_movement += left_rect - top_left.x;
-            },
-            (false, true, false, false) => {
-                // top right corner is the only one in the rect, all other verts are outside the bottom left
-                let bottom_left_rect = rect.loc + Point::new(0, rect.size.h);
-
-                let diff = bottom_left_rect - bottom_left;
-
-                x_movement += diff.x;
-                y_movement += diff.y;
-            },
-            (false, false, true, true) => {
-                // top side of window is outside on the top part of the rect
-                let top_rect = rect.loc.y;
-
-                y_movement += top_rect - top_left.y;
-            },
-            (false, false, true, false) => {
-                // bottom left corner is the only one inside, the other three are outside in the top right
-                let top_right_rect = rect.loc + Point::new(rect.size.w, 0);
-
-                let diff = top_right_rect - top_right;
-
-                x_movement += diff.x;
-                y_movement += diff.y;
-            },
-            (false, false, false, true) => {
-                // bottom right corner is the only one inside, the other three are outside in the top left
-                let top_left_rect = rect.loc;
-
-                let diff = top_left_rect - top_left;
-
-                x_movement += diff.x;
-                y_movement += diff.y;
-            },
-            (false, false, false, false) => {
-                // no corners are inside
-
-                // get positioning:
-                //       \                \
-                //   LT  \       T        \  RT
-                // - - - - - - - - - - - - - - - -
-                //       \||||||||||||||||\
-                //   L   \||||viewport||||\   R
-                //       \||||||||||||||||\
-                //       \||||||||||||||||\
-                // - - - - - - - - - - - - - - - -
-                //   LB  \       B        \  RB
-                //       \                \
-
-
-                let left_rect = rect.loc.x;
-                let right_rect = left_rect + rect.size.w;
-                let top_rect = rect.loc.y;
-                let bottom_rect = top_rect + rect.size.h;
-
-                let left: bool = top_left.x < left_rect;
-                let top: bool  = top_left.y < top_rect;
-
-                match (left, top) {
-                    // LT
-                    (true, true) => {
-                        x_movement += left_rect - top_left.x;
-                        y_movement += top_rect - top_left.y;
-                    },
-                    // L or LB
-                    (true, false) => {
-                        x_movement += left_rect - bottom_left.x;
-
-                        if bottom_rect < top_left.y || bottom_rect < bottom_left.y  {
-                            // LB
-                            y_movement += bottom_rect - bottom_left.y;
-                        } // else it's L and it doesnt't need to move in y
-                    },
-                    // T or RT
-                    (false, true) => {
-                        y_movement += top_rect - top_right.y;
-
-                        if right_rect < top_right.x || right_rect < top_left.x {
-                            // RT
-                            x_movement += right_rect - top_right.x;
-                        } // else it's T
-                    },
-                    // B, R, or BR
-                    (false, false) => {
-                        // TODO ...
-                    },
-                }
-            },
-        }
-
-        if x_movement == 0 && y_movement == 0 {
-            Ok(())
-        } else {
-            Err(Point::new(x_movement, y_movement))
-        }
-        */
     }
 
     pub fn shift_all(&mut self, delta: Point<i32, Logical>, space: &Space<WayfleetWindow>) {
         self.viewport_offset -= delta;
 
         let mut anim = self.animation.write().unwrap();
+
+        let mut done_leaders = HashSet::new();
+
         for row in &self.map {
             for tile in row {
                 if let Some(tile) = tile.as_ref() {
-                    anim.schedule::<MoveAnimation>(
-                        InfoType::Delta(delta),
-                        tile.window.clone(),
-                        space,
-                        Duration::from_millis(150),
-                        Easing::EaseInOut,
-                    );
+                    let leader = tile.leader_coord();
+
+                    if !done_leaders.contains(&leader) {
+                        done_leaders.insert(leader);
+                        anim.schedule::<MoveAnimation>(
+                            InfoType::Delta(delta),
+                            tile.window.clone(),
+                            space,
+                            Duration::from_millis(150),
+                            Easing::EaseInOut,
+                        );
+                    }
                 }
             }
         }

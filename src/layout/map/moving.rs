@@ -1,6 +1,6 @@
-use std::{mem, time::Duration};
+use std::{collections::HashSet, mem, time::Duration};
 
-use smithay::desktop::Space;
+use smithay::{desktop::Space, utils::{Logical, Point, Size}};
 
 use crate::{animations::{Easing, InfoType, MoveAnimation}, layout::WayfleetWindow};
 
@@ -31,7 +31,6 @@ impl Map {
             ..
         } = self.get_leader(self[coord].as_ref()?).clone()
         else {
-            println!("{:?}", self.map);
             unreachable!()
         };
 
@@ -82,7 +81,7 @@ impl Map {
         let x @ Tile {
             tile_type: TileType::Leader { coord, .. },
             ..
-        } = self.get_leader(self[coord].as_ref()?).clone()
+        } = self.get_leader(self.map.get(coord.row as usize)?.get(coord.column as usize)?.as_ref()?).clone()
         else {
             unreachable!()
         };
@@ -209,5 +208,83 @@ impl Map {
             Duration::from_millis(150),
             Easing::EaseInOut,
         );
+    }
+
+    pub fn move_offset_delta(&mut self, delta: Point<i32, Logical>, space: &mut Space<WayfleetWindow>) {
+        self.viewport.loc += delta;
+        self.viewport.size += {
+            let mut size = Size::new(0, 0);
+            size.h -= delta.y;
+            size.w -= delta.x;
+            size
+        };
+
+        let mut anim = self.animation.write().unwrap();
+        let mut done_leaders = HashSet::new();
+
+        for r in 0..self.rows {
+            for c in 0..self.columns {
+                if let Some(tile) = self.map[r][c].as_ref() {
+                    let leader_coord = tile.leader_coord();
+                    if !done_leaders.contains(&leader_coord) {
+                        done_leaders.insert(leader_coord);
+
+                        // let pos = self.get_position_shifted(Coordinate {
+                        //     row: r as i32,
+                        //     column: c as i32,
+                        // });
+
+                        anim.schedule::<MoveAnimation>(
+                            InfoType::Delta(delta),
+                            tile.window.clone(),
+                            space,
+                            Duration::from_millis(150),
+                            Easing::EaseInOut,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn move_offset(&mut self, new_offset: Point<i32, Logical>, space: &mut Space<WayfleetWindow>) {
+        let delta_viewport = new_offset - self.viewport.loc; 
+        
+        self.viewport.loc += delta_viewport;
+        self.viewport.size += {
+            let mut size = Size::new(0, 0);
+            size.h -= delta_viewport.y;
+            size.w -= delta_viewport.x;
+            size
+        };
+        
+        let mut anim = self.animation.write().unwrap();
+        let mut done_leaders = HashSet::new();
+
+        for r in 0..self.rows {
+            for c in 0..self.columns {
+                if let Some(tile) = self.map[r][c].as_ref() {
+                    let leader_coord = tile.leader_coord();
+                    if !done_leaders.contains(&leader_coord) {
+                        done_leaders.insert(leader_coord);
+
+                        let pos = self.get_position_shifted(Coordinate {
+                            row: r as i32,
+                            column: c as i32,
+                        });
+
+                        // space.relocate_element(&tile.window, pos);
+
+                        anim.schedule::<MoveAnimation>(
+                            InfoType::Final(pos),
+                            tile.window.clone(),
+                            space,
+                            Duration::from_millis(150),
+                            Easing::EaseInOut,
+                        );
+                    }
+                }
+            }
+        }
     }
 }

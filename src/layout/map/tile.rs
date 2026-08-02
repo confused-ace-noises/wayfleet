@@ -59,10 +59,7 @@ impl Tile {
 
         let mut vec = self.bounding_coords(map).into_iter().filter_map(|x| {
             
-            
             let coord = x + delta;
-
-            println!("delta: {delta:?}");
 
             let tile = map.map.get(coord.row as usize)?.get(coord.column as usize)?.as_ref()?;
 

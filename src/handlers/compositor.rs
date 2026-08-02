@@ -1,6 +1,5 @@
 use smithay::{
-    backend::renderer::utils::on_commit_buffer_handler,
-    wayland::{
+    backend::renderer::utils::on_commit_buffer_handler, wayland::{
         compositor::{CompositorHandler, get_parent, is_sync_subsurface},
         seat::WaylandFocus,
     },

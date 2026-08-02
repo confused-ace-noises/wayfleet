@@ -9,8 +9,7 @@ use smithay::{
 };
 
 use crate::{
-    animations::{AnimationBase, Easing, InfoType, MoveAnimation, ResizeAnimation},
-    layout::WayfleetWindow,
+    animations::{AnimationBase, Easing, InfoType, MoveAnimation, ResizeAnimation}, layout::{WayfleetWindow, controller::LayoutController},
 };
 
 use super::{
@@ -21,6 +20,16 @@ use super::{
 };
 
 impl Map {
+    pub fn change_cells_focused(
+        &mut self,
+        direction: Direction,
+        remove: bool,
+        space: &mut Space<WayfleetWindow>
+    ) -> Option<bool> {
+        let focus = self.focus?;
+        self.change_cells(&focus, direction, remove, space) 
+    }
+
     pub fn change_cells(
         &mut self,
         position: &Coordinate,
@@ -113,6 +122,10 @@ impl Map {
 
         let adj = tile.find_adjacent(self, &direction);
 
+        if adj.iter().any(|x| !self.is_valid_coord(*x)) {
+            return Some(false);
+        }
+
         let mut moves = Vec::new();
 
         for coordinate in adj.iter() {
@@ -178,29 +191,28 @@ impl Map {
 
     pub fn resize_all_cells(
         &mut self,
-        amount_w: i32,
-        amount_h: i32,
+        w: Option<i32>,
+        h: Option<i32>,
         space: &Space<WayfleetWindow>,
     ) -> bool {
-        if 
-        // would become 0-sized or negative
-            self.cell_height >= -amount_h 
-            || self.cell_width >= -amount_w
-            // would become bigger than viewport
-            || self.cell_height + amount_h > self.viewport.size.h
-            || self.cell_width + amount_w > self.viewport.size.w
-        {
+        if let Some(width) = w && width <= 0 {
+            return false;
+        } else if let Some(height) = h && height <= 0 {
             return false;
         }
 
-        self.cell_width += amount_w;
-        self.cell_height += amount_h;
+        let w = w.unwrap_or(self.cell_width);
+        let h = h.unwrap_or(self.cell_height);
+
+        // self.cell_width = w.unwrap_or(self.cell_width);
+        // self.cell_height = ;
 
         let mut anim = self.animation.write().unwrap();
 
+        // TODO URGENT: this doesn't work at all, because what if the tile isn't 0x0 rowsxcolumns?
         let mut size = Size::new(0, 0);
-        size.w += amount_w;
-        size.h += amount_h;
+        size.w += w;
+        size.h += h;
 
         let mut done_leaders = HashSet::new();
 
@@ -208,31 +220,44 @@ impl Map {
             for c in 0..self.columns {
                 if let Some(tile) = self.map[r][c].as_ref() {
                     let leader_coord = tile.leader_coord();
-                    if !done_leaders.contains(&leader_coord) {
-                        done_leaders.insert(leader_coord);
+                    if done_leaders.contains(&leader_coord) {
+                        continue;
+                    }
+                    done_leaders.insert(leader_coord);
 
-                        anim.schedule::<ResizeAnimation>(
-                            InfoType::Delta(size),
-                            tile.window.clone(),
-                            space,
-                            Duration::from_millis(150),
-                            Easing::EaseInOut,
-                        );
-
-                        anim.schedule::<MoveAnimation>(
-                            InfoType::Final(self.get_position_shifted(Coordinate {
-                                row: r as i32,
-                                column: c as i32,
-                            })),
-                            tile.window.clone(),
-                            space,
-                            Duration::from_millis(150),
-                            Easing::EaseInOut,
-                        );
+                    if let Err(min_size) = LayoutController::validate_size(&tile.window.window, size) {
+                        size = min_size
                     }
                 }
             }
         }
+
+        self.cell_width  = size.w;
+        self.cell_height = size.h;
+
+        for coord in done_leaders {
+            let tile = self[&coord].as_ref().unwrap();
+            
+            anim.schedule::<ResizeAnimation>(
+                InfoType::Final(size),
+                tile.window.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+            );
+
+            anim.schedule::<MoveAnimation>(
+                InfoType::Final(self.get_position_shifted(coord)),
+                tile.window.clone(),
+                space,
+                Duration::from_millis(150),
+                Easing::EaseInOut,
+            );
+        }
+
+        drop(anim);
+
+        self.realign_focused(space);
 
         true
     }

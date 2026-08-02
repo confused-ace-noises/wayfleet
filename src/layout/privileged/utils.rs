@@ -3,8 +3,7 @@ use std::{
 };
 
 use smithay::{
-    desktop::Space,
-    utils::{Logical, Point},
+    desktop::{Space, Window}, utils::{Logical, Point},
 };
 
 use super::Privileged;
@@ -73,7 +72,7 @@ impl Privileged {
         let point_left = self.get_point_tuple_raw((column, idx));
 
         let rect = {
-            let mut area = self.viewport;
+            let mut area = *self.viewport.read().unwrap();
             area.loc.x += self.right_shift;
             area
         };
@@ -109,7 +108,7 @@ impl Privileged {
         }
     }
 
-    pub fn find_position(&self, searching: &WayfleetWindow) -> Option<(usize, usize)> {
+    pub fn find_position_window(&self, searching: &Window) -> Option<(usize, usize)> {
         self.privileged
             .iter()
             .enumerate()
@@ -121,11 +120,14 @@ impl Privileged {
             .flatten()
     }
 
+    pub fn find_position(&self, searching: &WayfleetWindow) -> Option<(usize, usize)> {
+        self.find_position_window(&searching.window)
+    }
+
     pub fn is_valid_idxs(&self, (column, idx): (usize, usize)) -> bool {
         column < self.privileged.len() && idx < self.privileged[column].len()
     }
 
-    /// TODO: check if it works
     pub fn get_point_raw(&self, coord: Coordinate) -> Point<i32, Logical> {
         let Coordinate {
             row: idx,
@@ -136,7 +138,7 @@ impl Privileged {
     }
 
     pub fn get_point_tuple_raw(&self, (column_idx, idx): (usize, usize)) -> Point<i32, Logical> {
-        let mut current: Point<_, Logical> = Point::new(0, 0);
+        let mut current: Point<_, Logical> = self.viewport.read().unwrap().loc;
 
         for col in 0..column_idx {
             let tile = &self.privileged[col][0];

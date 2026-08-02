@@ -88,12 +88,43 @@ impl Map {
     }
 
     pub fn new_focus_hinted(&mut self, hint: i32, space: &Space<WayfleetWindow>) -> Option<WayfleetWindow> {
-        let mut point = self.offset;
+        // TODO: handle the entire top row not having a single window
+        let mut point = self.viewport.loc;
         point.x = hint;
         point.y += 1;
 
-        let (window, _) = space.element_under(point.to_f64())?;
+        if let Some((window, _)) = space.element_under(point.to_f64()) {
+            self.new_focus(window, space).then_some(window.clone())
+        } else {
+            // didn't find a tile; try again moving a bit:
+            point.x -= self.spaces.horizontal as i32;
+            
+            if let Some((window, _)) = space.element_under(point.to_f64()) {
+                self.new_focus(window, space).then_some(window.clone())
+            } else {
+                let mut to_return = None;
 
-        self.new_focus(window, space).then_some(window.clone())
+                // couldn't find it, just use the first one:
+                for r in 0..self.rows {
+                    for c in 0..self.columns {
+                        if let Some(tile) = self.map[r][c].as_ref() {
+                            let window = tile.window.clone();
+                            to_return = Some(window);
+                            let coord = tile.leader_coord();
+                            self.new_focus_at(coord, space);
+                        }
+                    }
+                }
+
+                to_return
+            }
+        }
+    }
+
+    pub fn realign_focused(&mut self, space: &Space<WayfleetWindow>) {
+        let Some(focus) = self.focus else { return; };
+        if let Err(to_shift) = self.is_visible(focus) {
+            self.shift_all(to_shift, space);
+        }
     }
 }

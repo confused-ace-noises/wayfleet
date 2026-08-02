@@ -1,7 +1,9 @@
+use std::sync::{Arc, RwLock};
+
 use smithay::{utils::{Logical, Point, Rectangle, Size}};
 use wayfleet_config::{padding::Padding, size::Spaces};
 
-use crate::{animations::AnimationHandle, layout::privileged::tile::Tile, state::OutputState};
+use crate::{animations::AnimationHandle, layout::{CropRect, privileged::tile::Tile}, state::OutputState};
 
 pub mod tile;
 pub mod insert;
@@ -9,10 +11,11 @@ pub mod utils;
 pub mod recalc;
 pub mod moving;
 pub mod focus;
+pub mod resize;
 
 #[derive(Debug)]
 pub struct Privileged {
-    pub viewport: Rectangle<i32, Logical>,
+    pub viewport: CropRect,
     pub right_shift: i32,
     pub privileged: Vec<Vec<Tile>>,
     pub animation: AnimationHandle,
@@ -58,7 +61,7 @@ impl Privileged {
         Self {
             privileged: vec![],
             right_shift: 0,
-            viewport,
+            viewport: Arc::new(RwLock::new(viewport)),
             animation,
             map_offset,
             focused: None,

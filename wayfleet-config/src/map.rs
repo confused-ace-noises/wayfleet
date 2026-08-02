@@ -8,7 +8,7 @@ pub struct Map {
     pub size: Size<Grid>,
     pub cells: Size<SizeRepr>,
     pub spaces: Size<Spaces>,
-    pub margins: Padding,
+    pub padding: Padding,
 }
 
 #[derive(Debug, Decode)]
@@ -23,12 +23,12 @@ pub(crate) struct MapSpanned {
     pub spaces: Size<Spaces>,
     
     #[knus(child, default)]
-    pub margins: Padding,
+    pub padding: Padding,
 }
 
 impl MapSpanned {
     pub fn into_map(self, src: &NamedSource<String>) -> Result<Map, ConfigError> {
-        let Self { size, cells, spaces, margins } = self;
+        let Self { size, cells, spaces, padding } = self;
 
         let mut loc1a = None::<SourceSpan>;
         let mut loc2a = None::<SourceSpan>;
@@ -99,7 +99,7 @@ impl MapSpanned {
             size: size.value.into(),
             cells: cells.value.into(),
             spaces: spaces.into(),
-            margins,
+            padding,
         })
     }
 }

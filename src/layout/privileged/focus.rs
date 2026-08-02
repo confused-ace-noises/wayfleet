@@ -40,7 +40,7 @@ impl Privileged {
             self.privileged[column].last().map(|x| &x.window)
         };
 
-        let mut point: Point<i32, Logical> = Point::<_, Logical>::new(x_hint, self.viewport.loc.y + 1); // +1 to make sure it falls into a window
+        let mut point: Point<i32, Logical> = Point::<_, Logical>::new(x_hint, self.viewport.read().unwrap().loc.y + 1); // +1 to make sure it falls into a window
         let window = find_last(point).cloned();
 
         match window {
