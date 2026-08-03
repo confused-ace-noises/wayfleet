@@ -77,6 +77,8 @@ impl Privileged {
             area
         };
 
+        if !self.is_valid_idxs((column, idx)) { return Ok(()) }
+
         let point_right = point_left + Point::new(self.privileged[column][idx].size.w, 0);
 
         match (rect.contains(point_left), rect.contains(point_right)) {

@@ -23,7 +23,7 @@ fn main() -> Result<()> {
 
     unsafe { sigaction(Signal::SIGCHLD, &action).unwrap() };
 
-    startup_spawns(&state.socket);
+    startup_spawns(&state.socket, &state.xwayland_display_number);
     event_loop.run(None, &mut state, |state| {    
         state.layout.tick_animation();
     }).unwrap();

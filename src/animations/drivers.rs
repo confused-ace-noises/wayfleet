@@ -49,10 +49,10 @@ pub struct ResizeAnimation;
 impl AnimationDriver for ResizeAnimation {
     type Value = Size<i32, Logical>;
 
-    fn drive(&mut self, value: &Self::Value, window: &WayfleetWindow, _: &mut Space<WayfleetWindow>) {
+    fn drive(&mut self, value: &Self::Value, window: &WayfleetWindow, space: &mut Space<WayfleetWindow>) {
         let mut lock = window.specific_crop.write().unwrap();
         lock.size = *value;
-        LayoutController::resize(window, ResizeType::Both(*value));
+        LayoutController::resize(space, window, ResizeType::Both(*value));
     }
 
     fn start_end(&self, info: InfoType<Self::Value>, window: &WayfleetWindow, _: &Space<WayfleetWindow>) -> (Self::Value, Self::Value) {

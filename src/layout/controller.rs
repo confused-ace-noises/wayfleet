@@ -3,7 +3,7 @@ use std::{
 };
 
 use smithay::{
-    desktop::{Space, Window}, reexports::wayland_protocols::xdg::shell::server::xdg_toplevel, utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size}, wayland::{compositor::with_states, seat::WaylandFocus, shell::xdg::SurfaceCachedState },
+    desktop::{Space, Window}, utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size}, wayland::{compositor::with_states, seat::WaylandFocus, shell::xdg::SurfaceCachedState },
 };
 use wayfleet_config::{Config, amount::SetSizeAmount};
 
@@ -138,41 +138,57 @@ impl LayoutController {
         self.set_focused_inner_window();
     }
 
-    pub fn resize(window: &Window, resize: ResizeType) -> Option<()> {
-        let xdg = window.toplevel().unwrap();
-        let out = xdg.with_pending_state(|state| match resize {
-            ResizeType::Both(size) => {
-                // dbg!(state.size);
-                state.size = Some(size);
-                Some(())
-            }
-            ResizeType::Width(w) => {
-                if let Some(size) = state.size {
-                    let size = Size::new(w, size.h);
-                    state.size = Some(size);
-                    Some(())
-                } else {
-                    None
-                }
-            }
-            ResizeType::Height(h) => {
-                if let Some(size) = state.size {
-                    let size = Size::new(size.w, h);
-                    state.size = Some(size);
-                    Some(())
-                } else {
-                    None
-                }
-            }
-        });
+    pub fn resize(space: &Space<WayfleetWindow>, window: &Window, resize: ResizeType) -> Option<()> {
+        match window.underlying_surface() {
+            smithay::desktop::WindowSurface::Wayland(toplevel_surface) => {
+                let out = toplevel_surface.with_pending_state(|state| match resize {
+                    ResizeType::Both(size) => {
+                        // dbg!(state.size);
+                        state.size = Some(size);
+                        Some(())
+                    }
+                    ResizeType::Width(w) => {
+                        if let Some(size) = state.size {
+                            let size = Size::new(w, size.h);
+                            state.size = Some(size);
+                            Some(())
+                        } else {
+                            None
+                        }
+                    }
+                    ResizeType::Height(h) => {
+                        if let Some(size) = state.size {
+                            let size = Size::new(size.w, h);
+                            state.size = Some(size);
+                            Some(())
+                        } else {
+                            None
+                        }
+                    }
+                });
 
-        if out.is_some() {
-            xdg.send_configure();
+                if out.is_some() {
+                    toplevel_surface.send_configure();
+                }
+
+                out        
+            },
+            smithay::desktop::WindowSurface::X11(x11) => {
+               let current = space.element_geometry(&WayfleetWindow::dummy(window.clone()))?; // TODO: check if this works
+
+                match resize {
+                    ResizeType::Both(size) => x11.configure(Rectangle::new(current.loc, size)).ok(),
+                    ResizeType::Width(w) => x11.configure(Rectangle::new(current.loc, Size::new(w, current.size.h))).ok(),
+                    ResizeType::Height(h) => x11.configure(Rectangle::new(current.loc, Size::new(current.size.w, h))).ok(),
+                } 
+            },
         }
-
-        out
     }
 
+
+    // this method isn't used so im just commenting it out because
+    // im too lazy to reimplement it for xwayalnd 
+    /*
     pub fn resize_delta(window: &Window, resize: ResizeType) -> Option<()> {
         let xdg = window.toplevel().unwrap();
         let out = xdg.with_pending_state(|state| match resize {
@@ -206,6 +222,7 @@ impl LayoutController {
 
         out
     }
+    */
 
     pub fn tick_animation(&mut self) {
         let mut lock = self.animation.write().unwrap();
@@ -411,10 +428,10 @@ impl LayoutController {
                     // if the radial search found somehting, set that
                     
                     state.refocus(&old_win, &window);
-                    assert!(state
+                    state
                         .layout
                         .privileged
-                        .new_focus(&window, &state.layout.space));
+                        .new_focus(&window, &state.layout.space);
                     state.layout.set_unfocused_inner_window();
                     state.layout.focus = Focus::Privileged(window);
                     state.layout.set_focused_inner_window();
@@ -440,6 +457,7 @@ impl LayoutController {
                 } else {
                     // if nothing is found at all, we just don't have a focus
                     state.defocus(&old_win);
+                    state.layout.privileged.focused = None;
                     state.layout.set_unfocused_inner_window();
                     state.layout.focus = Focus::None;
                     state.layout.set_focused_inner_window();
@@ -500,7 +518,7 @@ impl LayoutController {
     }
 
     pub(super) fn validate_size(window: impl Borrow<Window>, new_size: Size<i32, Logical>) -> Result<(), Size<i32, Logical>> {
-        let surface = window.borrow().wl_surface().unwrap();
+        let Some(surface) = window.borrow().wl_surface() else  { return Ok(()) };
         
         let min_size = with_states(&surface, |states| {
             let mut binding = states.cached_state.get::<SurfaceCachedState>();
@@ -603,25 +621,29 @@ impl LayoutController {
 
 impl State {
     pub fn defocus(&mut self, old: &Window) {
-        if let Some(xdg) = old.toplevel() {
-            xdg.with_pending_state(|state| {
-                state.states.unset(xdg_toplevel::State::Activated);
-            });
+        // match old.underlying_surface() {
+        //     smithay::desktop::WindowSurface::Wayland(toplevel) => {            
+        //         toplevel.with_pending_state(|state| {
+        //             state.states.unset(xdg_toplevel::State::Activated);
+        //         });
+    
+        //         toplevel.send_pending_configure();
+        //     },
+        //     smithay::desktop::WindowSurface::X11(x11_surface) => {
+        //         x11_surface.set_activated(false).unwrap();
+        //     },
+        // }
 
-            xdg.send_pending_configure();
-        }
+        old.set_activated(false);
     }
 
     pub fn refocus(&mut self, old: &Window, new: &Window) {
-        if let Some(xdg) = old.toplevel() {
-            xdg.with_pending_state(|state| {
-                state.states.unset(xdg_toplevel::State::Activated);
-            });
+        
+        old.set_activated(false);
 
+        if let Some(xdg) = old.toplevel() {
             xdg.send_pending_configure();
         }
-
-        old.set_activated(false);
 
         let new_surface = new.wl_surface().map(|x| x.as_ref().clone());
         self.seat.get_keyboard().unwrap().set_focus(
@@ -629,12 +651,10 @@ impl State {
             new_surface,
             SERIAL_COUNTER.next_serial(),
         );
+        
+        new.set_activated(true);
 
         if let Some(xdg) = new.toplevel() {
-            xdg.with_pending_state(|state| {
-                state.states.set(xdg_toplevel::State::Activated);
-            });
-
             xdg.send_pending_configure();
         }
     }

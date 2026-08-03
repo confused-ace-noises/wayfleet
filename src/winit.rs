@@ -121,7 +121,7 @@ pub fn init_winit(
                             &mut framebuffer,
                             1.0,
                             0,
-                            [&state.layout.space],
+                            [&state.layout.space, &state.xwayland_override_redirects_space],
                             &[],
                             &mut damage_tracker,
                             [0.88, 0.69, 1.0, 1.0], // mauve

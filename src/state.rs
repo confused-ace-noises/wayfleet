@@ -1,7 +1,7 @@
 use std::{ffi::OsString, sync::{Arc, OnceLock}, time::Instant};
 
 use smithay::{
-    desktop::{PopupManager, Window}, input::{Seat, SeatState}, reexports::{
+    desktop::{PopupManager, Space, Window}, input::{Seat, SeatState}, reexports::{
     calloop::{self, EventLoop, Interest, LoopHandle, LoopSignal, generic::Generic}, wayland_server::{
             Display, DisplayHandle,
         },
@@ -9,12 +9,12 @@ use smithay::{
         compositor::CompositorState, output::OutputManagerState, seat::WaylandFocus, selection::data_device::DataDeviceState, shell::{wlr_layer::WlrLayerShellState, xdg::{
             XdgShellState,
             decoration::XdgDecorationState,
-        }}, shm::ShmState, socket::ListeningSocketSource,
-    },
+        }}, shm::ShmState, socket::ListeningSocketSource, xwayland_shell::XWaylandShellState,
+    }, xwayland::X11Wm,
 };
 use wayfleet_config::Config;
 
-use crate::{handlers::ClientState, layout::controller::LayoutController};
+use crate::{handlers::{ClientState, xwayland::create_xwayland}, layout::{WayfleetWindow, controller::LayoutController}};
 
 pub static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
 
@@ -28,6 +28,10 @@ pub struct State {
     pub output_state: OutputState,
     pub config: Arc<Config>,
 
+    // this is literally only made to track those OR xwayland windows and nothing else
+    pub xwayland_override_redirects_space: Space<WayfleetWindow>,
+    pub xwayland_display_number: Option<String>,
+
     // smithay state
     pub compositor: CompositorState,
     pub shm: ShmState,
@@ -39,6 +43,8 @@ pub struct State {
     pub data_device: DataDeviceState,
     pub layer_state: WlrLayerShellState,
     pub output_manager: OutputManagerState,
+    pub xwalyand_manager: Option<X11Wm>,
+    pub xwayland_shell: XWaylandShellState,
 }
 
 impl State {
@@ -66,20 +72,23 @@ impl State {
             })
             .expect("Failed to init the wayland event source.");
 
-        loop_handle
-            .insert_source(
-                Generic::new(display_real, Interest::READ, calloop::Mode::Level),
-                |_, display_io, state| {
-                    unsafe {
-                        display_io.get_mut().dispatch_clients(state).unwrap();
-                    }
-                    Ok(calloop::PostAction::Continue)
-                },
-            )
-            .unwrap();
+        let handle = display_real.handle();
 
+        loop_handle
+        .insert_source(
+            Generic::new(display_real, Interest::READ, calloop::Mode::Level),
+            |_, display_io, state| {
+                unsafe {
+                    display_io.get_mut().dispatch_clients(state).unwrap();
+                }
+                Ok(calloop::PostAction::Continue)
+            },
+        )
+        .unwrap();
+    
         let mut seats = SeatState::<Self>::new();
         let seat = seats.new_wl_seat(&display, "winit");
+        
 
         let config = Arc::new(config);
 
@@ -87,11 +96,13 @@ impl State {
 
         // let output_manager = display.create_global::<ZxdgOutputManagerV1, ()>(1, ());
 
-        Self {
+        let ret = Self {
             loop_signal,
             start_time,
             loop_handle,
             layout: LayoutController::new(&config, &output_state),
+            // xwayland_redirect_overrides: HashSet::new(),
+            xwayland_override_redirects_space: Space::default(),
             compositor: CompositorState::new::<Self>(&display),
             shm: ShmState::new::<Self>(&display, vec![]),
             xdg_shell: XdgShellState::new::<Self>(&display),
@@ -105,16 +116,21 @@ impl State {
             popups: PopupManager::default(),
             config,
             output_manager: OutputManagerState::new_with_xdg_output::<Self>(&display),
+            xwalyand_manager: None,
+            xwayland_display_number: None,
+            xwayland_shell: XWaylandShellState::new::<Self>(&display),
             display,
-        }
+        };
+
+        create_xwayland(event_loop.handle(), handle);
+
+        ret
     }
 
     pub fn set_kb_focus(&mut self, window: &Window) {
+        window.set_activated(true);
+        
         if let Some(xdg) = window.toplevel() {
-            xdg.with_pending_state(|state| {
-                state.states.set(smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State::Activated);
-            });
-
             xdg.send_pending_configure();
         }
 

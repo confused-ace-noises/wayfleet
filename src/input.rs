@@ -218,13 +218,20 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
     // let keybind = dbg!(keybind);
 
     let socket = state.socket.clone();
+    let xwayland_display_number = state.xwayland_display_number.clone();
     let spawn = |command: &mut Command| {
-        let _ = command
+        let cmd = command
             .env("WAYLAND_DISPLAY", &socket)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn();
+            .stderr(Stdio::null());
+        
+        if let Some(disp_n) = &xwayland_display_number {
+            cmd
+                .env("DISPLAY", disp_n);
+        }
+
+        let _ = cmd.spawn();
     };
 
     for action in keybind.actions {
@@ -248,7 +255,6 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
             Action::PushLateralLeft => state.layout.push_privileged_laterally(Direction::Left),
             
             // * resize window
-            // TODO: add resize for privileged
             Action::SetPrivilegedWindowHeight(a) => state.layout.resize_focused_window_privileged(a, false),
             Action::SetPrivilegedWindowWidth(a)  => state.layout.resize_focused_window_privileged(a, true),
             
@@ -324,7 +330,6 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
                 spawn(
                     Command::new(command)
                         .args(args)
-                        .env("WAYLAND_DISPLAY", &state.socket),
                 );
             }
             Action::SpawnPrivilegedSh(string) => {
@@ -341,7 +346,6 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
                 spawn(
                     Command::new(command)
                         .args(args)
-                        .env("WAYLAND_DISPLAY", &state.socket),
                 );
             }
             Action::SpawnMapSh(string) => {
@@ -357,8 +361,9 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
                 if let Some(ref focued) = current_focus {
                     LayoutController::remove(state, focued);
 
-                    if let Some(x) = focued.toplevel() {
-                        x.send_close()
+                    match focued.underlying_surface() {
+                        smithay::desktop::WindowSurface::Wayland(toplevel) => toplevel.send_close(),
+                        smithay::desktop::WindowSurface::X11(x11) => x11.close().unwrap_or_default(),
                     }
                 }
             }

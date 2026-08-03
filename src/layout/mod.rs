@@ -70,6 +70,18 @@ impl WayfleetWindow {
         let mut lock = self.is_focused.write().unwrap();
         *lock = focus;
     }
+
+    pub fn dummy(window: Window) -> Self {
+        Self::new(window, WayfleetWindowType::Privileged(Arc::new(RwLock::new(Rectangle::zero()))), Arc::new(RwLock::new(Rectangle::zero())), false)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn new_x11_OR(window: Window) -> Self {
+        // note: this is allowed solely because the renderer checks wherther a window
+        // is OR before cropping it and stuff. this will hopefully not shoot me in the
+        // foot in the future (it definitely will)
+        Self::dummy(window)
+    }
 }
 
 impl PartialEq for WayfleetWindow {
@@ -180,6 +192,35 @@ impl AsRenderElements<GlesRenderer> for WayfleetWindow {
     ) -> Vec<C> {
         let wayfleet_config::Config { layout: wayfleet_config::Layout { decorations: wayfleet_config::decorations::Decorations { border }, .. }, .. } = CONFIG.get().unwrap().as_ref();
 
+        let render_with_borders = |x: WaylandSurfaceRenderElement<GlesRenderer>| {
+            
+            let specific_crop: Rectangle<i32, Logical> = *self.specific_crop.read().unwrap();
+
+            let color = if *self.is_focused.read().unwrap() {
+                border.active_color.clone()
+            } else {
+                border.inactive_color.clone()
+            };
+
+            let viewport_crop = if self.is_map() {
+                let Self { window_type: WayfleetWindowType::Map(crop), .. } = self else { unreachable!() };
+                *crop.read().unwrap()
+            } else {
+                let Self { window_type: WayfleetWindowType::Privileged(crop), .. } = self else { unreachable!() };
+                *crop.read().unwrap()
+            };
+
+            let final_rect = viewport_crop.intersection(specific_crop).unwrap_or_default();
+
+            CropRenderElement::from_element(x, scale, final_rect.to_physical_precise_round(scale))
+            .map(|crop| {
+                [
+                    InnerOrBorder::Inner(MaybeCropped::Crop(crop)),
+                    InnerOrBorder::Border(make_border(final_rect, border.width, alpha, border.corner_radius as f32, color.into()))
+                ]
+            }).into_iter().flatten().map(C::from)
+        };
+
         match self.underlying_surface() {
             WindowSurface::Wayland(s) => {
                 let mut render_elements: Vec<C> = Vec::new();
@@ -226,44 +267,37 @@ impl AsRenderElements<GlesRenderer> for WayfleetWindow {
                     .into_iter()
                     .flat_map(
                         |x: WaylandSurfaceRenderElement<GlesRenderer>| {
-                            let res = {
-                                let specific_crop: Rectangle<i32, Logical> = *self.specific_crop.read().unwrap();
-
-                                let color = if *self.is_focused.read().unwrap() {
-                                    border.active_color.clone()
-                                } else {
-                                    border.inactive_color.clone()
-                                };
-
-                                let viewport_crop = if self.is_map() {
-                                    let Self { window_type: WayfleetWindowType::Map(crop), .. } = self else { unreachable!() };
-                                    *crop.read().unwrap()
-                                } else {
-                                    let Self { window_type: WayfleetWindowType::Privileged(crop), .. } = self else { unreachable!() };
-                                    *crop.read().unwrap()
-                                };
-
-                                let final_rect = viewport_crop.intersection(specific_crop).unwrap_or_default();
-
-                                CropRenderElement::from_element(x, scale, final_rect.to_physical_precise_round(scale))
-                                .map(|crop| {
-                                    [
-                                        InnerOrBorder::Inner(MaybeCropped::Crop(crop)),
-                                        InnerOrBorder::Border(make_border(final_rect, border.width, alpha, border.corner_radius as f32, color.into()))
-                                    ]
-                                })
-                            };
-                            
-                            res.into_iter().flatten().map(|x| C::from(x))
+                            render_with_borders(x)
                         },
                     ),
                 );
 
                 render_elements
-            }
+            },
 
-            #[allow(clippy::todo)] // tmp
-            WindowSurface::X11(_s) => todo!(),
+            WindowSurface::X11(x11) => {
+                let mut render_elements = Vec::new();
+
+                if !x11.is_override_redirect() {
+                    let x = render_elements_from_surface_tree(renderer, &x11.wl_surface().unwrap(), location, scale, alpha, Kind::Unspecified)
+                        .into_iter()
+                        .flat_map(render_with_borders);
+
+                    render_elements.extend(x);
+                } else {
+                    let x = render_elements_from_surface_tree(renderer, &x11.wl_surface().unwrap(), location, scale, alpha, Kind::Unspecified)
+                        .into_iter()
+                        .map(|x: WaylandSurfaceRenderElement<GlesRenderer>| {
+                            let element = MaybeCropped::NoCrop(x);
+
+                            C::from(InnerOrBorder::Inner(element))
+                        });
+
+                    render_elements.extend(x);
+                }
+
+                render_elements
+            },
         }
     }
 }

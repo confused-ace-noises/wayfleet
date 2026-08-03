@@ -17,7 +17,7 @@ impl Map {
             self.resize_all_cells(Some(min_size.w), Some(min_size.h), space);
         }
         
-        LayoutController::resize(&window, ResizeType::Both(new_size));
+        LayoutController::resize(space, &window, ResizeType::Both(new_size));
         
         let pos = self.get_position_shifted(first_avail_coord);
         let wayfleet_window = window.as_map(crop_rect, Arc::new(RwLock::new(Rectangle { loc: pos, size: new_size })));
@@ -56,7 +56,7 @@ impl Map {
             self.resize_all_cells(Some(min_size.w), Some(min_size.h), space);
         }
         
-        LayoutController::resize(&window, ResizeType::Both(new_size));
+        LayoutController::resize(space, &window, ResizeType::Both(new_size));
         
         let pos = self.get_position_shifted(first_avail_coord);
         let wayfleet_window = window.as_map(crop_rect, Arc::new(RwLock::new(Rectangle { loc: pos, size: new_size })));

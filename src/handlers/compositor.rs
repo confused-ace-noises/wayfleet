@@ -2,7 +2,7 @@ use smithay::{
     backend::renderer::utils::on_commit_buffer_handler, wayland::{
         compositor::{CompositorHandler, get_parent, is_sync_subsurface},
         seat::WaylandFocus,
-    },
+    }, xwayland::XWaylandClientData,
 };
 
 use crate::{handlers::ClientState, layout::controller::LayoutController, state::State};
@@ -16,7 +16,13 @@ impl CompositorHandler for State {
         &self,
         client: &'a smithay::reexports::wayland_server::Client,
     ) -> &'a smithay::wayland::compositor::CompositorClientState {
-        &client.get_data::<ClientState>().unwrap().compositor_state
+        if let Some(state) = client.get_data::<ClientState>() {
+            &state.compositor_state
+        } else if let Some(state) = client.get_data::<XWaylandClientData>() {
+            &state.compositor_state
+        } else {
+            unimplemented!("what does this even want")
+        }
     }
 
     fn commit(
@@ -34,7 +40,7 @@ impl CompositorHandler for State {
                 .layout
                 .space
                 .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == &root)
+                .find(|w| w.toplevel().map(|x| *x.wl_surface() == root).unwrap_or(false))
             {
                 window.on_commit();
             }

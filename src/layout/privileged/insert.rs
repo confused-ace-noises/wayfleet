@@ -56,7 +56,7 @@ impl Privileged {
 
         let wayfleet_window = window.as_priv(Arc::new(RwLock::new(Rectangle { loc: pos, size })), self.viewport.clone());
 
-        LayoutController::resize(&window, ResizeType::Both(size));
+        LayoutController::resize(space, &window, ResizeType::Both(size));
         window.set_activated(true);
 
         {
@@ -132,7 +132,7 @@ impl Privileged {
 
         let wayfleet_window = window.as_priv(self.viewport.clone(), Arc::new(RwLock::new(Rectangle { loc: pos, size })));
 
-        LayoutController::resize(&window, ResizeType::Both(size));
+        LayoutController::resize(space, &window, ResizeType::Both(size));
 
         space.map_element(wayfleet_window.clone(), pos, true);
         self.shift_columsn(size.w + self.spaces.horizontal as i32, column.., space);
@@ -179,6 +179,12 @@ impl Privileged {
                 *focused_col -= 1;
             }
 
+
+            if self.privileged.is_empty() {
+                self.focused = None;
+            }
+
+
             self.realign_focused(space);
             space.unmap_elem(&window);
             self.shift_columsn(
@@ -210,6 +216,10 @@ impl Privileged {
                 && *focused_col > column_idx
             {
                 *focused_col -= 1;
+            }
+
+            if self.privileged.is_empty() {
+                self.focused = None;
             }
 
             self.realign_focused(space);
