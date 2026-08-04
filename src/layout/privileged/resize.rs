@@ -25,16 +25,16 @@ impl Privileged {
     }
 
     pub fn set_height_all_cells(&mut self, h: i32, space: &Space<WayfleetWindow>) -> i32 {
-        let delta = h - dbg!(self.map_offset);
-
         let config = CONFIG.get().unwrap();
+        
+        let delta = h  + config.layout.privileged.padding.down - self.map_offset;
 
         if h - config.layout.privileged.padding.down <= 0 {
             return self.map_offset;
         }
 
         self.map_offset = h + config.layout.privileged.padding.down; // + config.layout.privileged.padding.down + config.layout.map.padding.top;
-        self.viewport.write().unwrap().size.h = h; // TODO fix for padding
+        self.viewport.write().unwrap().size.h = h;
         self.std_size.h = h;
 
         for column in 0..self.privileged.len() {

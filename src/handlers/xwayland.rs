@@ -85,7 +85,12 @@ impl XwmHandler for State {
     fn mapped_override_redirect_window(&mut self, _xwm: smithay::xwayland::xwm::XwmId, window: smithay::xwayland::X11Surface) {
         let location = window.last_configure().loc;
         let window = Window::new_x11_window(window);
-        self.xwayland_override_redirects_space.map_element(WayfleetWindow::new_x11_OR(window), location, true);
+
+        window.override_z_index(255);
+
+        let wayfleet_window = WayfleetWindow::new_x11_OR(window);
+        self.xwayland_override_redirects_space.map_element(wayfleet_window.clone(), location, true);
+        self.xwayland_override_redirects_space.raise_element(&wayfleet_window, false);
     }
 
     fn unmapped_window(&mut self, _xwm: smithay::xwayland::xwm::XwmId, window: smithay::xwayland::X11Surface) {

@@ -3,15 +3,14 @@ use std::{
 };
 
 use smithay::{
-    desktop::{Space, Window}, utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size}, wayland::{compositor::with_states, seat::WaylandFocus, shell::xdg::SurfaceCachedState },
+    desktop::{LayerSurface, Space, Window}, utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size}, wayland::{compositor::with_states, seat::WaylandFocus, shell::xdg::SurfaceCachedState },
 };
 use wayfleet_config::{Config, amount::SetSizeAmount};
 
 use crate::{
     animations::{AnimationController, AnimationHandle}, layout::{
         WayfleetWindow, map::{
-            Map,
-            coordinate::Direction,
+            Map, coordinate::{Coordinate, Direction},
         }, privileged::Privileged,
     }, state::{CONFIG, OutputState, State},
 };
@@ -39,6 +38,7 @@ pub struct LayoutController {
     pub map_clip: Arc<RwLock<Rectangle<i32, Logical>>>,
     pub output_state: OutputState,
     pub forced_windows: VecDeque<ForceSpawn>,
+    pub is_layer_focused: bool,
 }
 
 impl LayoutController {
@@ -67,6 +67,7 @@ impl LayoutController {
             focus: Focus::None,
             output_state: output_state.clone(),
             forced_windows: VecDeque::new(),
+            is_layer_focused: false,
         }
     }
 
@@ -460,7 +461,6 @@ impl LayoutController {
                     state.layout.privileged.focused = None;
                     state.layout.set_unfocused_inner_window();
                     state.layout.focus = Focus::None;
-                    state.layout.set_focused_inner_window();
                 }
             }
             // let window = state.layout.privileged.radial_search(window, &state.layout.space);
@@ -602,10 +602,9 @@ impl LayoutController {
         let privileged_rect = *x;
         drop(binding);
 
-        self.privileged.set_height_all_cells(privileged_rect.size.h, &self.space);
+        let map_top = self.privileged.set_height_all_cells(privileged_rect.size.h, &self.space);
 
-        let privileged_bottom = privileged_rect.loc.y + privileged_rect.size.h;
-        let map_top = privileged_bottom + padding_priv.down + padding_map.top;
+        let map_top = map_top + padding_map.top;
         let map_available = Rectangle::new(
             Point::new(available.loc.x + left, map_top),
             Size::new(
@@ -617,9 +616,75 @@ impl LayoutController {
         self.map.viewport = self.map.viewport.intersection(map_available).unwrap_or(map_available);
         self.map.move_offset(self.map.viewport.loc, &mut self.space);
     }
+
 }
 
 impl State {
+    pub fn focus_layer(&mut self, layer: &LayerSurface) {
+        if layer.can_receive_keyboard_focus() {
+            self.layout.is_layer_focused = true;
+
+            match self.layout.focus.clone() {
+                Focus::None => {},
+                Focus::Map(wayfleet_window) => self.defocus(&wayfleet_window),
+                Focus::Privileged(wayfleet_window) => self.defocus(&wayfleet_window),
+            }
+            
+            self.layout.set_unfocused_inner_window();
+                
+            self.layout.focus = Focus::None;
+
+            self.seat.get_keyboard().unwrap().set_focus(
+                self,
+                Some(layer.wl_surface().clone()),
+                SERIAL_COUNTER.next_serial(),
+            );
+        }
+    }
+
+    pub fn defocus_layer(&mut self) {
+
+        if self.layout.is_layer_focused {
+            self.layout.is_layer_focused = false;
+
+            let maybe_window = self.layout.map.radial_search(Coordinate { row : 0, column: 0 }).cloned();
+
+            if let Some(window) = maybe_window {
+                self.layout.map.new_focus(&window, &self.layout.space);
+                self.layout.focus = Focus::Map(window.clone());
+                self.layout.set_focused_inner_window();
+              
+                self.seat.get_keyboard().unwrap().set_focus(
+                    self,
+                    Some(window.wl_surface().unwrap().into_owned().clone()),
+                    SERIAL_COUNTER.next_serial(),
+                );
+            } else if let Some(first) = self.layout
+                .space
+                .elements()
+                .cloned()
+                .collect::<Vec<_>>()
+                .first()
+            {
+                self.layout.privileged.new_focus(first, &self.layout.space);
+                self.layout.focus = Focus::Privileged(first.clone());
+                self.layout.set_focused_inner_window();
+
+                self.seat.get_keyboard().unwrap().set_focus(
+                    self,
+                    Some(first.wl_surface().unwrap().into_owned().clone()),
+                    SERIAL_COUNTER.next_serial(),
+                );
+            } else {
+                self.seat.get_keyboard().unwrap().set_focus(
+                    self,
+                    None,
+                    SERIAL_COUNTER.next_serial(),
+                );
+            }
+        }
+    }
+
     pub fn defocus(&mut self, old: &Window) {
         // match old.underlying_surface() {
         //     smithay::desktop::WindowSurface::Wayland(toplevel) => {            

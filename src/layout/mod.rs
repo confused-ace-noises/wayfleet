@@ -278,18 +278,20 @@ impl AsRenderElements<GlesRenderer> for WayfleetWindow {
             WindowSurface::X11(x11) => {
                 let mut render_elements = Vec::new();
 
+                let Some(surface) = x11.wl_surface() else { return render_elements };
+
                 if !x11.is_override_redirect() {
-                    let x = render_elements_from_surface_tree(renderer, &x11.wl_surface().unwrap(), location, scale, alpha, Kind::Unspecified)
+                    let x = render_elements_from_surface_tree(renderer, &surface, location, scale, alpha, Kind::Unspecified)
                         .into_iter()
                         .flat_map(render_with_borders);
 
                     render_elements.extend(x);
                 } else {
-                    let x = render_elements_from_surface_tree(renderer, &x11.wl_surface().unwrap(), location, scale, alpha, Kind::Unspecified)
+                    let x = render_elements_from_surface_tree(renderer, &surface, location, scale, alpha, Kind::Unspecified)
                         .into_iter()
                         .map(|x: WaylandSurfaceRenderElement<GlesRenderer>| {
                             let element = MaybeCropped::NoCrop(x);
-
+                            println!("rendered");
                             C::from(InnerOrBorder::Inner(element))
                         });
 

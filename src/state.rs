@@ -101,7 +101,6 @@ impl State {
             start_time,
             loop_handle,
             layout: LayoutController::new(&config, &output_state),
-            // xwayland_redirect_overrides: HashSet::new(),
             xwayland_override_redirects_space: Space::default(),
             compositor: CompositorState::new::<Self>(&display),
             shm: ShmState::new::<Self>(&display, vec![]),
@@ -121,7 +120,7 @@ impl State {
             xwayland_shell: XWaylandShellState::new::<Self>(&display),
             display,
         };
-
+        
         create_xwayland(event_loop.handle(), handle);
 
         ret

@@ -84,6 +84,7 @@ pub fn init_winit(
     output.set_preferred(mode);
 
     state.layout.space.map_output(&output, (0, 0));
+    state.xwayland_override_redirects_space.map_output(&output, (0, 0));
     // let x = ZxdgOutputManagerV1::from(value);
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
@@ -121,7 +122,10 @@ pub fn init_winit(
                             &mut framebuffer,
                             1.0,
                             0,
-                            [&state.layout.space, &state.xwayland_override_redirects_space],
+                            [
+                                &state.xwayland_override_redirects_space,
+                                &state.layout.space, 
+                            ],
                             &[],
                             &mut damage_tracker,
                             [0.88, 0.69, 1.0, 1.0], // mauve
@@ -133,7 +137,7 @@ pub fn init_winit(
                         .submit(render_result.damage.map(|x| x.as_slice()))
                         .unwrap();
 
-                    state.layout.space.elements().for_each(|window| {
+                    state.layout.space.elements().chain(state.xwayland_override_redirects_space.elements()).for_each(|window| {
                         window.send_frame(
                             &output,
                             state.start_time.elapsed(),

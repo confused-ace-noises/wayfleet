@@ -97,7 +97,7 @@ impl Map {
         Point::new(
             column * self.cell_width + (column) * self.spaces.horizontal as i32 + self.viewport.loc.x,
             row * self.cell_height + (row) * self.spaces.vertical as i32 + self.viewport.loc.y,
-        ) + Point::new(column.signum(), row.signum())
+        ) + Point::new(column.signum(), row.signum()) 
     }
 
     pub fn get_position_shifted(&self, coordinate: Coordinate) -> Point<i32, Logical> {

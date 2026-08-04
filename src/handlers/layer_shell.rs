@@ -1,4 +1,4 @@
-use smithay::{desktop::{LayerSurface, layer_map_for_output}, output::Output, wayland::shell::wlr_layer::WlrLayerShellHandler};
+use smithay::{desktop::{LayerSurface, WindowSurfaceType, layer_map_for_output}, output::Output, wayland::{compositor::add_post_commit_hook, shell::wlr_layer::WlrLayerShellHandler}};
 
 use crate::state::State;
 
@@ -22,8 +22,25 @@ impl WlrLayerShellHandler for State {
         let layer = LayerSurface::new(surface, namespace);
         layer.layer_surface().send_configure();
         map.map_layer(&layer).unwrap();
+
+        println!("about to focus layer");
+        if layer.can_receive_keyboard_focus() {
+            println!("focusing layer");
+            self.focus_layer(&layer);
+        }
+
+        let cloned_layer = layer.clone();
+        
+        add_post_commit_hook::<State, _>(layer.clone().wl_surface(), move |state, _, _| {
+            if cloned_layer.can_receive_keyboard_focus() {
+                println!("focusing layer");
+                state.focus_layer(&layer);
+            }
+        });
+
         map.arrange();
         let available = map.non_exclusive_zone();
+        println!("{available:?}");
         self.layout.update_available_state(available);
     }
 
@@ -46,10 +63,11 @@ impl WlrLayerShellHandler for State {
         let available = map.non_exclusive_zone();
         drop(map);
         drop(outputs);
+        self.defocus_layer();
         self.layout.update_available_state(available);
     }
 
-    fn ack_configure(&mut self, _surface: smithay::reexports::wayland_server::protocol::wl_surface::WlSurface, _configure: smithay::wayland::shell::wlr_layer::LayerSurfaceConfigure) {
+    fn ack_configure(&mut self, surface: smithay::reexports::wayland_server::protocol::wl_surface::WlSurface, _configure: smithay::wayland::shell::wlr_layer::LayerSurfaceConfigure) {
         let Some(mut map) = self.layout.space.outputs().map(|o| {
             layer_map_for_output(o)
         }).next()  else { // TODO: this next is fine because we ever only allow one output, but i know it'll shot me in the foot some time in the future
@@ -57,7 +75,15 @@ impl WlrLayerShellHandler for State {
         };
         map.arrange();
         let available = map.non_exclusive_zone();
-        drop(map);
+        println!("about to focus layer");
+        if let Some(layer) =  map.layer_for_surface(&surface, WindowSurfaceType::empty()).cloned() && layer.can_receive_keyboard_focus() {
+            println!("focusing layer");
+            drop(map);    
+            self.focus_layer(&layer);
+        } else {
+            drop(map);
+        }
         self.layout.update_available_state(available);
+
     }
 }
