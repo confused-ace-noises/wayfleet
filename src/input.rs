@@ -15,10 +15,10 @@ use smithay::{
 use wayfleet_config::keybinds::{Action, KeyBind, KeyCombo, Modifiers, Trigger};
 
 use crate::{
-    layout::{controller::{ForceSpawn, LayoutController}, map::coordinate::Direction}, state::State,
+    layout::{controller::{ForceSpawn, LayoutController}, map::coordinate::Direction}, state::{BackendData, State},
 };
 
-impl State {
+impl<BD: BackendData> State<BD> {
     pub fn run_input<I: InputBackend>(&mut self, input: InputEvent<I>) {
         match input {
             InputEvent::DeviceAdded { device } => {
@@ -65,16 +65,16 @@ impl State {
             InputEvent::PointerMotion { .. } => {}
             InputEvent::PointerMotionAbsolute { event } => {
                 if let Some(pointer) = self.seat.get_pointer() {
-                    let output = self.layout.space.outputs().next().unwrap();
+                    let layout = self.backend_data.layout_controller_mut();
+                    let output = layout.space.outputs().next().unwrap();
 
-                    let output_geo = self.layout.space.output_geometry(output).unwrap();
+                    let output_geo = layout.space.output_geometry(output).unwrap();
 
                     let pos = event.position_transformed(output_geo.size) + output_geo.loc.to_f64();
 
                     let serial = SERIAL_COUNTER.next_serial();
 
-                    let under = self
-                        .layout
+                    let under = layout
                         .find_window_pos(pos)
                         .and_then(|(w, p)| Some((w.wl_surface()?.into_owned(), p.to_f64())));
 
@@ -100,10 +100,11 @@ impl State {
 
                     let button_state = event.state();
 
+                    let layout = self.backend_data.layout_controller_mut();
+
                     if ButtonState::Pressed == button_state
                         && !pointer.is_grabbed()
-                        && let Some(window) = self
-                            .layout
+                        && let Some(window) = layout
                             .find_window(pointer.current_location().to_i32_round())
                             .cloned()
                     // .space
@@ -119,7 +120,7 @@ impl State {
                             // bleed into the privileged area would raise above the privileged area
                             // and steal foucs. By not raising it, LayoutController always knows
                             // what z index every map and every privileged window is.
-                            self.layout.space.raise_element(&window, true);
+                            layout.space.raise_element(&window, true);
                         }
 
                         // TODO: hanle popups
@@ -182,8 +183,8 @@ impl State {
     }
 }
 
-pub fn kb_filter(
-    state: &mut State,
+pub fn kb_filter<BD: BackendData>(
+    state: &mut State<BD>,
     modifiers: &ModifiersState,
     keysym: KeysymHandle<'_>,
 ) -> FilterResult<KeyBind> {
@@ -214,7 +215,7 @@ pub fn kb_filter(
     FilterResult::Intercept(keybind.clone())
 }
 
-pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
+pub fn handle_keybind<BD: BackendData>(state: &mut State<BD>, keybind: KeyBind) {
     // let keybind = dbg!(keybind);
 
     let socket = state.socket.clone();
@@ -234,7 +235,12 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
         let _ = cmd.spawn();
     };
 
+    
     for action in keybind.actions {
+        let layout = state.backend_data.layout_controller_mut();
+
+        println!("action taken: {:?}", action);
+
         match action {
             // * move focusthread_local! {}
             Action::MoveFocusUp => LayoutController::move_focus(state, Direction::Up),
@@ -243,68 +249,68 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
             Action::MoveFocusLeft => LayoutController::move_focus(state, Direction::Left),
 
             // * move (map) or swap (map & privileged) window
-            Action::MoveOrSwapUp => state.layout.swap_focused(Direction::Up),
-            Action::MoveOrSwapDown => state.layout.swap_focused(Direction::Down),
-            Action::MoveOrSwapRight => state.layout.swap_focused(Direction::Right),
-            Action::MoveOrSwapLeft => state.layout.swap_focused(Direction::Left),
+            Action::MoveOrSwapUp => layout.swap_focused(Direction::Up),
+            Action::MoveOrSwapDown => layout.swap_focused(Direction::Down),
+            Action::MoveOrSwapRight => layout.swap_focused(Direction::Right),
+            Action::MoveOrSwapLeft => layout.swap_focused(Direction::Left),
 
-            Action::MoveFocusedToOtherArea => state.layout.move_focused_to_other_area(),
+            Action::MoveFocusedToOtherArea => layout.move_focused_to_other_area(),
 
             // * move and shift in map, absorb/eject from columns in privileged
-            Action::PushLateralRight => state.layout.push_privileged_laterally(Direction::Right),
-            Action::PushLateralLeft => state.layout.push_privileged_laterally(Direction::Left),
+            Action::PushLateralRight => layout.push_privileged_laterally(Direction::Right),
+            Action::PushLateralLeft => layout.push_privileged_laterally(Direction::Left),
             
             // * resize window
-            Action::SetPrivilegedWindowHeight(a) => state.layout.resize_focused_window_privileged(a, false),
-            Action::SetPrivilegedWindowWidth(a)  => state.layout.resize_focused_window_privileged(a, true),
+            Action::SetPrivilegedWindowHeight(a) => layout.resize_focused_window_privileged(a, false),
+            Action::SetPrivilegedWindowWidth(a)  => layout.resize_focused_window_privileged(a, true),
             
-            Action::MapResizeAddUp       => { state.layout.change_cell_size_map_if_focused(Direction::Up,    false); },
-            Action::MapResizeAddDown     => { state.layout.change_cell_size_map_if_focused(Direction::Down,  false); },
-            Action::MapResizeAddRight    => { state.layout.change_cell_size_map_if_focused(Direction::Right, false); },
-            Action::MapResizeAddLeft     => { state.layout.change_cell_size_map_if_focused(Direction::Left,  false); },
-            Action::MapResizeRemoveUp    => { state.layout.change_cell_size_map_if_focused(Direction::Up,    true);  },
-            Action::MapResizeRemoveDown  => { state.layout.change_cell_size_map_if_focused(Direction::Down,  true);  },
-            Action::MapResizeRemoveRight => { state.layout.change_cell_size_map_if_focused(Direction::Right, true);  },
-            Action::MapResizeRemoveLeft  => { state.layout.change_cell_size_map_if_focused(Direction::Left,  true);  },
+            Action::MapResizeAddUp       => { layout.change_cell_size_map_if_focused(Direction::Up,    false); },
+            Action::MapResizeAddDown     => { layout.change_cell_size_map_if_focused(Direction::Down,  false); },
+            Action::MapResizeAddRight    => { layout.change_cell_size_map_if_focused(Direction::Right, false); },
+            Action::MapResizeAddLeft     => { layout.change_cell_size_map_if_focused(Direction::Left,  false); },
+            Action::MapResizeRemoveUp    => { layout.change_cell_size_map_if_focused(Direction::Up,    true);  },
+            Action::MapResizeRemoveDown  => { layout.change_cell_size_map_if_focused(Direction::Down,  true);  },
+            Action::MapResizeRemoveRight => { layout.change_cell_size_map_if_focused(Direction::Right, true);  },
+            Action::MapResizeRemoveLeft  => { layout.change_cell_size_map_if_focused(Direction::Left,  true);  },
             
             // * resize cells
-            Action::SetMapCellHeight(amount) => state.layout.resize_cells_map(amount, true),
-            Action::SetMapCellWidth(amount) => state.layout.resize_cells_map(amount, false),
+            Action::SetMapCellHeight(amount) => layout.resize_cells_map(amount, true),
+            Action::SetMapCellWidth(amount) => layout.resize_cells_map(amount, false),
 
             Action::SetPrivilegedCellHeight(amount) => {
-                state.layout.resize_column_height_privileged(amount)
+                layout.resize_column_height_privileged(amount)
             }
 
-            Action::SetFocusedCellHeight(amount) => state.layout.resize_cells_focused(amount, true),
-            Action::SetFocusedCellWidth(amount) => state.layout.resize_cells_focused(amount, false),
+            Action::SetFocusedCellHeight(amount) => layout.resize_cells_focused(amount, true),
+            Action::SetFocusedCellWidth(amount) => layout.resize_cells_focused(amount, false),
 
             // FIXME: this is hortrbile.
             Action::MapAddColumn => {
-                state.layout.map.columns += 1;
-                state.layout.map.recalculate_available();
+                layout.map.columns += 1;
+                layout.map.recalculate_available();
             },
             Action::MapAddRow => {
-                state.layout.map.rows += 1;
-                state.layout.map.recalculate_available();
+                layout.map.rows += 1;
+                layout.map.recalculate_available();
             }
             Action::MapRemoveColumn => {
                 let mut x = 0;
                 let mut iter = std::iter::from_fn(|| {
-                    let out = state.layout.map.map.get(x)?.last()?;
+                    let out = layout.map.map.get(x)?.last()?;
                     x += 1;
                     Some(out)
                 });
 
                 if !iter.any(|x| x.is_some()) {
-                    state.layout.map.columns -= 1;
-                    state.layout.map.recalculate_available();
+                    layout.map.columns -= 1;
+                    layout.map.recalculate_available();
                 }
 
             }
             Action::MapRemoveRow => {
-                if let Some(last_row) = state.layout.map.map.last() && !last_row.iter().any(|el| el.is_some()) {
-                    state.layout.map.rows -= 1;
-                    state.layout.map.recalculate_available();
+                if let Some(last_row) = layout.map.map.last() && !last_row.iter().any(|el| el.is_some()) {
+                    layout.map.rows -= 1;
+                    layout.map.recalculate_available();
                 }
             }
 
@@ -323,7 +329,7 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
             }
 
             Action::SpawnPrivileged(items) => {
-                state.layout.forced_windows.push_back(ForceSpawn::Priv);
+                layout.forced_windows.push_back(ForceSpawn::Priv);
 
                 let (command, args) = items.split_first().unwrap();
 
@@ -333,13 +339,13 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
                 );
             }
             Action::SpawnPrivilegedSh(string) => {
-                state.layout.forced_windows.push_back(ForceSpawn::Priv);
+                layout.forced_windows.push_back(ForceSpawn::Priv);
 
                 spawn(Command::new("sh").arg("-c").arg(string))
             }
 
             Action::SpawnMap(items) => {
-                state.layout.forced_windows.push_back(ForceSpawn::Map);
+                layout.forced_windows.push_back(ForceSpawn::Map);
 
                 let (command, args) = items.split_first().unwrap();
 
@@ -349,17 +355,17 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
                 );
             }
             Action::SpawnMapSh(string) => {
-                state.layout.forced_windows.push_back(ForceSpawn::Map);
+                layout.forced_windows.push_back(ForceSpawn::Map);
 
                 spawn(Command::new("sh").arg("-c").arg(string))
             }
 
             Action::CloseWindow => {
-                // state.layout.
-                let current_focus = state.layout.currently_focused().cloned();
+                // layout.
+                let current_focus = layout.currently_focused().cloned();
 
-                if let Some(ref focued) = current_focus {
-                    LayoutController::remove(state, focued);
+                if let Some(focued) = current_focus {
+                    LayoutController::remove(state, &focued);
 
                     match focued.underlying_surface() {
                         smithay::desktop::WindowSurface::Wayland(toplevel) => toplevel.send_close(),
@@ -373,11 +379,11 @@ pub fn handle_keybind(state: &mut State, keybind: KeyBind) {
             Action::None => {}
 
             // * Diag
-            Action::DumpMap => println!("dump-map was called: {:?}", state.layout.map),
+            Action::DumpMap => println!("dump-map was called: {:?}", layout.map),
             Action::DumpPrivileged => {
-                println!("dump-privileged was called: {:?}", state.layout.privileged)
+                println!("dump-privileged was called: {:?}", layout.privileged)
             }
-            Action::DumpLayout => println!("dump-layout was called: {:?}", state.layout),
+            Action::DumpLayout => println!("dump-layout was called: {:?}", *layout),
             
         }
     }

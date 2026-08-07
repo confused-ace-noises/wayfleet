@@ -1,26 +1,26 @@
 use smithay::{desktop::{PopupKind, Window}, reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode, wayland::shell::xdg::{XdgShellHandler, XdgShellState, decoration::XdgDecorationHandler}};
 
-use crate::state::State;
+use crate::state::{BackendData, State};
 
 #[allow(unused_variables)] // tmp
-impl XdgShellHandler for State {
+impl<BD: BackendData> XdgShellHandler for State<BD> {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
         &mut self.xdg_shell
     }
 
     fn new_toplevel(&mut self, surface: smithay::wayland::shell::xdg::ToplevelSurface) {
-        let map = &mut self.layout.map;
+        let map = &mut self.layout_mut().map;
 
         surface.send_configure();
 
         let window = Window::new_wayland_window(surface);
-        let old_window  = match &self.layout.focus {
+        let old_window  = match &self.layout().focus {
             crate::layout::controller::Focus::None => None,
             crate::layout::controller::Focus::Map(window) => Some(window.clone()),
             crate::layout::controller::Focus::Privileged(window) => Some(window.clone())  ,
         };
         // dbg!(&window);
-        self.layout.insert_by_focus_w_forcing(window.clone());
+        self.layout_mut().insert_by_focus_w_forcing(window.clone());
         
         if let Some(old) = old_window {
             self.refocus(&old, &window);
@@ -64,7 +64,7 @@ impl XdgShellHandler for State {
     }
 }
 
-impl XdgDecorationHandler for State {
+impl<BD: BackendData> XdgDecorationHandler for State<BD> {
     fn new_decoration(&mut self, toplevel: smithay::wayland::shell::xdg::ToplevelSurface) {
         toplevel.with_pending_state(|state| {
             state.decoration_mode = Some(Mode::ServerSide);

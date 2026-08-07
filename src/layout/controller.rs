@@ -3,16 +3,16 @@ use std::{
 };
 
 use smithay::{
-    desktop::{LayerSurface, Space, Window}, utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size}, wayland::{compositor::with_states, seat::WaylandFocus, shell::xdg::SurfaceCachedState },
+    desktop::{LayerSurface, Space, Window, layer_map_for_output}, utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size}, wayland::{compositor::with_states, seat::WaylandFocus, shell::xdg::SurfaceCachedState },
 };
 use wayfleet_config::{Config, amount::SetSizeAmount};
 
 use crate::{
     animations::{AnimationController, AnimationHandle}, layout::{
         WayfleetWindow, map::{
-            Map, coordinate::{Coordinate, Direction},
-        }, privileged::Privileged,
-    }, state::{CONFIG, OutputState, State},
+            Map, MapHeight, coordinate::{Coordinate, Direction},
+        }, privileged::{Height, Privileged},
+    }, state::{BackendData, CONFIG, OutputState, State},
 };
 
 #[derive(Debug, Clone)]
@@ -272,8 +272,8 @@ impl LayoutController {
         self.space.element_under(point)
     }
 
-    pub fn move_focus(state: &mut State, direction: Direction) {
-        let _self = &mut state.layout;
+    pub fn move_focus<BD: BackendData>(state: &mut State<BD>, direction: Direction) {
+        let _self = state.backend_data.layout_controller_mut();
 
         match _self.focus.clone() {
             Focus::Map(old) => {
@@ -282,18 +282,22 @@ impl LayoutController {
                 match x {
                     super::map::focus::ShiftFocusOutput::Success(window) => {
                         state.refocus(&old, &window);
-                        state.layout.set_unfocused_inner_window();
-                        state.layout.focus = Focus::Map(window);
-                        state.layout.set_focused_inner_window();
+                        
+                        let _self = state.backend_data.layout_controller_mut();
+                        _self.set_unfocused_inner_window();
+                        _self.focus = Focus::Map(window);
+                        _self.set_focused_inner_window();
                     }
                     super::map::focus::ShiftFocusOutput::Invalid => {}
                     super::map::focus::ShiftFocusOutput::OutOfBounds => {}
                     super::map::focus::ShiftFocusOutput::OutOfBoundsHinted(hint) => {
                         if let Some(new) = _self.privileged.new_focus_hinted(hint, &_self.space) {
                             state.refocus(&old, &new);
-                            state.layout.set_unfocused_inner_window();
-                            state.layout.focus = Focus::Privileged(new);
-                            state.layout.set_focused_inner_window();
+                                                        
+                            let _self = state.backend_data.layout_controller_mut();
+                            _self.set_unfocused_inner_window();
+                            _self.focus = Focus::Privileged(new);
+                            _self.set_focused_inner_window();
                         }
                     }
                 }
@@ -304,18 +308,22 @@ impl LayoutController {
                 match x {
                     super::map::focus::ShiftFocusOutput::Success(window) => {
                         state.refocus(&old, &window);
-                        state.layout.set_unfocused_inner_window();
-                        state.layout.focus = Focus::Privileged(window);
-                        state.layout.set_focused_inner_window();
+                        
+                        let _self = state.backend_data.layout_controller_mut();
+                        _self.set_unfocused_inner_window();
+                        _self.focus = Focus::Privileged(window);
+                        _self.set_focused_inner_window();
                     }
                     super::map::focus::ShiftFocusOutput::Invalid => {}
                     super::map::focus::ShiftFocusOutput::OutOfBounds => {}
                     super::map::focus::ShiftFocusOutput::OutOfBoundsHinted(hint) => {
                         if let Some(new) = _self.map.new_focus_hinted(hint, &_self.space) {
                             state.refocus(&old, &new);
-                            state.layout.set_unfocused_inner_window();
-                            state.layout.focus = Focus::Map(new);
-                            state.layout.set_focused_inner_window();
+
+                            let _self = state.backend_data.layout_controller_mut();
+                            _self.set_unfocused_inner_window();
+                            _self.focus = Focus::Map(new);
+                            _self.set_focused_inner_window();
                         }
                     }
                 }
@@ -324,31 +332,36 @@ impl LayoutController {
         }
     }
 
-    pub fn new_focus(state: &mut State, window: WayfleetWindow) {
-        let old_window = match &state.layout.focus {
+    pub fn new_focus<BD: BackendData>(state: &mut State<BD>, window: WayfleetWindow) {
+        let _self = state.backend_data.layout_controller_mut();
+
+        let old_window = match &_self.focus {
             Focus::Map(window) =>  Some(window.clone()),
             Focus::Privileged(window) =>  Some(window.clone()),
             Focus::None => None
         };
 
-        if state.layout.map.new_focus(&window, &state.layout.space) {
+        if _self.map.new_focus(&window, &_self.space) {
             if let Some(old) = old_window {
                 state.refocus(&old, &window);
             }
-            state.layout.set_unfocused_inner_window();
-            state.layout.focus = Focus::Map(window);
-            state.layout.set_focused_inner_window();
+
+            let _self = state.backend_data.layout_controller_mut();
+            _self.set_unfocused_inner_window();
+            _self.focus = Focus::Map(window);
+            _self.set_focused_inner_window();
         } else {
-            state
-                .layout
+            _self
                 .privileged
-                .new_focus(&window, &state.layout.space);
+                .new_focus(&window, &_self.space);
             if let Some(old) = old_window {
                 state.refocus(&old, &window);
             }
-            state.layout.set_unfocused_inner_window();
-            state.layout.focus = Focus::Privileged(window);
-            state.layout.set_focused_inner_window();
+            
+            let _self = state.backend_data.layout_controller_mut();
+            _self.set_unfocused_inner_window();
+            _self.focus = Focus::Privileged(window);
+            _self.set_focused_inner_window();
         }
     }
 
@@ -372,24 +385,27 @@ impl LayoutController {
         }
     }
 
-    pub fn remove(state: &mut State, window: &Window) {
-        if let Some(tile) = state.layout.map.search_tile_window(window) {
-            if let Focus::Map(win) = &state.layout.focus
+    pub fn remove<BD: BackendData>(state: &mut State<BD>, window: &Window) {
+        let _self = state.backend_data.layout_controller_mut();
+
+        if let Some(tile) = _self.map.search_tile_window(window) {
+            if let Focus::Map(win) = &_self.focus
                 && *win == *window
             {
                 // needs to refocus onto something else somehow
                 let old_win = win.clone();
-                let new_focus = state.layout.map.radial_search(tile).cloned();
+                let new_focus = _self.map.radial_search(tile).cloned();
 
                 if let Some(window) = new_focus {
                     // if the radial search found somehting, set that
+                    _self.map.new_focus(&window, &_self.space);
                     state.refocus(&old_win, &window);
-                    state.layout.map.new_focus(&window, &state.layout.space);
-                    state.layout.set_unfocused_inner_window();
-                    state.layout.focus = Focus::Map(window);
-                    state.layout.set_focused_inner_window();
-                } else if let Some(window) = state
-                    .layout
+                    
+                    let _self = state.backend_data.layout_controller_mut();
+                    _self.set_unfocused_inner_window();
+                    _self.focus = Focus::Map(window);
+                    _self.set_focused_inner_window();
+                } else if let Some(window) = _self
                     .space
                     .elements()
                     .filter(|&x| x != window)
@@ -398,47 +414,53 @@ impl LayoutController {
                     .first()
                 {
                     // if radial search didn't find anything, just get the first one
-                    state.layout.map.viewport_offset = Point::<i32, Logical>::new(0, 0);
-                    state.layout.map.focus = None;
+                    _self.map.viewport_offset = Point::<i32, Logical>::new(0, 0);
+                    _self.map.focus = None;
                     let window = window.clone();
-                    state
-                        .layout
+                    _self
                         .privileged
-                        .new_focus(&window, &state.layout.space);
+                        .new_focus(&window, &_self.space);
+
                     state.refocus(&old_win, &window);
-                    state.layout.set_unfocused_inner_window();
-                    state.layout.focus = Focus::Privileged(window.clone());
-                    state.layout.set_focused_inner_window();
+                    let _self = state.backend_data.layout_controller_mut();
+                    _self.set_unfocused_inner_window();
+                    _self.focus = Focus::Privileged(window.clone());
+                    _self.set_focused_inner_window();
                 } else {
                     // if nothing is found at all, we just don't have a focus
                     state.defocus(&old_win);
-                    state.layout.set_unfocused_inner_window();
-                    state.layout.focus = Focus::None;
+
+                    let _self = state.backend_data.layout_controller_mut();
+                    _self.set_unfocused_inner_window();
+                    _self.focus = Focus::None;
                 }
             }
-            state.layout.map.remove(&tile, &mut state.layout.space);
+
+            let _self = state.backend_data.layout_controller_mut();
+
+            _self.map.remove(&tile, &mut _self.space);
         } else {
-            if let Focus::Privileged(win) = &state.layout.focus
+            if let Focus::Privileged(win) = &_self.focus
                 && *win == *window
             {
                 let old_win = win.clone();
                 // need to refocus
-                let new_focus = state.layout.privileged.radial_search(&old_win).cloned();
+                let new_focus = _self.privileged.radial_search(&old_win).cloned();
 
                 if let Some(window) = new_focus {
                     // if the radial search found somehting, set that
                     
-                    state.refocus(&old_win, &window);
-                    state
-                        .layout
+                    _self
                         .privileged
-                        .new_focus(&window, &state.layout.space);
-                    state.layout.set_unfocused_inner_window();
-                    state.layout.focus = Focus::Privileged(window);
-                    state.layout.set_focused_inner_window();
+                        .new_focus(&window, &_self.space);
+                    state.refocus(&old_win, &window);
 
-                } else if let Some(window) = state
-                    .layout
+                    let _self = state.backend_data.layout_controller_mut();
+                    _self.set_unfocused_inner_window();
+                    _self.focus = Focus::Privileged(window);
+                    _self.set_focused_inner_window();
+
+                } else if let Some(window) = _self
                     .space
                     .elements()
                     .filter(|&x| x != window)
@@ -447,27 +469,33 @@ impl LayoutController {
                     .first()
                 {
                     // if radial search didn't find anything, just get the first one
-                    state.layout.privileged.focused = None;
-                    state.layout.privileged.right_shift = 0;
+                    _self.privileged.focused = None;
+                    _self.privileged.right_shift = 0;
                     let window = window.clone();
+                    _self.map.new_focus(&window, &_self.space);
                     state.refocus(&old_win, &window);
-                    state.layout.map.new_focus(&window, &state.layout.space);
-                    state.layout.set_unfocused_inner_window();
-                    state.layout.focus = Focus::Map(window.clone());
-                    state.layout.set_focused_inner_window();
+
+                    let _self = state.backend_data.layout_controller_mut();
+                    _self.set_unfocused_inner_window();
+                    _self.focus = Focus::Map(window.clone());
+                    _self.set_focused_inner_window();
                 } else {
                     // if nothing is found at all, we just don't have a focus
                     state.defocus(&old_win);
-                    state.layout.privileged.focused = None;
-                    state.layout.set_unfocused_inner_window();
-                    state.layout.focus = Focus::None;
+
+                    let _self = state.backend_data.layout_controller_mut();
+                    _self.privileged.focused = None;
+                    _self.set_unfocused_inner_window();
+                    _self.focus = Focus::None;
                 }
             }
+            let _self = state.backend_data.layout_controller_mut();
+
             // let window = state.layout.privileged.radial_search(window, &state.layout.space);
-            state
-                .layout
+            
+            _self
                 .privileged
-                .remove(window.clone(), &mut state.layout.space);
+                .remove(window.clone(), &mut _self.space);
         }
     }
 
@@ -616,23 +644,54 @@ impl LayoutController {
         self.map.viewport = self.map.viewport.intersection(map_available).unwrap_or(map_available);
         self.map.move_offset(self.map.viewport.loc, &mut self.space);
     }
-
 }
 
-impl State {
+impl<BD: BackendData> State<BD> {
+    pub fn resize_output(&mut self, output_state: OutputState) {
+        
+        let config = self.config.clone();
+        let layout = self.backend_data.layout_controller();
+        
+        let mut lock = layout.privileged.viewport.write().unwrap();
+        
+        *lock = Privileged::output_state_to_rect(&output_state, &config.layout.privileged.padding, Height::FromOld((self.backend_data.output_state().clone(), *lock)));
+        
+        drop(lock);
+
+        let mut lock = layout.map_clip.write().unwrap();
+        
+        let map_rect = Map::output_state_to_rect(&output_state, &config.layout.map.padding, MapHeight::FromOld((self.backend_data.output_state().clone(), layout.map.viewport)));
+
+        *lock = map_rect;
+
+        drop(lock);
+
+        let layout = self.layout_mut();
+        layout.map.viewport = map_rect;
+
+        if let Some(mut layer_map) = layout.space.outputs().map(|x| layer_map_for_output(x)).next() {
+            layer_map.arrange();
+        }
+        
+    }
+
     pub fn focus_layer(&mut self, layer: &LayerSurface) {
         if layer.can_receive_keyboard_focus() {
-            self.layout.is_layer_focused = true;
+            let _self = self.backend_data.layout_controller_mut();
+        
+            _self.is_layer_focused = true;
 
-            match self.layout.focus.clone() {
+            match _self.focus.clone() {
                 Focus::None => {},
                 Focus::Map(wayfleet_window) => self.defocus(&wayfleet_window),
                 Focus::Privileged(wayfleet_window) => self.defocus(&wayfleet_window),
             }
             
-            self.layout.set_unfocused_inner_window();
+            let _self = self.backend_data.layout_controller_mut();
+
+            _self.set_unfocused_inner_window();
                 
-            self.layout.focus = Focus::None;
+            _self.focus = Focus::None;
 
             self.seat.get_keyboard().unwrap().set_focus(
                 self,
@@ -643,32 +702,32 @@ impl State {
     }
 
     pub fn defocus_layer(&mut self) {
+        let layout = self.backend_data.layout_controller_mut();
+        if layout.is_layer_focused {
+            layout.is_layer_focused = false;
 
-        if self.layout.is_layer_focused {
-            self.layout.is_layer_focused = false;
-
-            let maybe_window = self.layout.map.radial_search(Coordinate { row : 0, column: 0 }).cloned();
+            let maybe_window = layout.map.radial_search(Coordinate { row : 0, column: 0 }).cloned();
 
             if let Some(window) = maybe_window {
-                self.layout.map.new_focus(&window, &self.layout.space);
-                self.layout.focus = Focus::Map(window.clone());
-                self.layout.set_focused_inner_window();
+                layout.map.new_focus(&window, &layout.space);
+                layout.focus = Focus::Map(window.clone());
+                layout.set_focused_inner_window();
               
                 self.seat.get_keyboard().unwrap().set_focus(
                     self,
                     Some(window.wl_surface().unwrap().into_owned().clone()),
                     SERIAL_COUNTER.next_serial(),
                 );
-            } else if let Some(first) = self.layout
+            } else if let Some(first) = layout
                 .space
                 .elements()
                 .cloned()
                 .collect::<Vec<_>>()
                 .first()
             {
-                self.layout.privileged.new_focus(first, &self.layout.space);
-                self.layout.focus = Focus::Privileged(first.clone());
-                self.layout.set_focused_inner_window();
+                layout.privileged.new_focus(first, &layout.space);
+                layout.focus = Focus::Privileged(first.clone());
+                layout.set_focused_inner_window();
 
                 self.seat.get_keyboard().unwrap().set_focus(
                     self,

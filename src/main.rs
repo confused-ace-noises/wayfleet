@@ -2,16 +2,16 @@ use std::time::Instant;
 use miette::Result;
 use nix::sys::signal::{SaFlags, SigAction, SigHandler, SigSet, Signal, sigaction};
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};
-use wayfleet::{startup_spawns, state::State};
+use wayfleet::{startup_spawns, state::{State, Winit}};
 use wayfleet_config::Config;
 
 const CONFIG_FILE: &str = "config.kdl";
-
+// TODO: add post commit hook to re-check the min size of windows
 fn main() -> Result<()> {
     let config = Config::parse(CONFIG_FILE)?;
 
-    let mut event_loop = EventLoop::<'static, State>::try_new().unwrap();
-    let display = Display::<State>::new().unwrap();
+    let mut event_loop = EventLoop::<'static, State<Winit>>::try_new().unwrap();
+    let display = Display::<State<Winit>>::new().unwrap();
 
     let mut state = wayfleet::winit::init_winit(&mut event_loop, display, config).unwrap();
 
@@ -25,7 +25,7 @@ fn main() -> Result<()> {
 
     startup_spawns(&state.socket, &state.xwayland_display_number);
     event_loop.run(None, &mut state, |state| {    
-        state.layout.tick_animation();
+        state.layout_mut().tick_animation();
     }).unwrap();
 
     Ok(())

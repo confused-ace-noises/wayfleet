@@ -5,9 +5,9 @@ use smithay::{
     }, xwayland::XWaylandClientData,
 };
 
-use crate::{handlers::ClientState, layout::controller::LayoutController, state::State};
+use crate::{handlers::ClientState, layout::controller::LayoutController, state::{BackendData, State}};
 
-impl CompositorHandler for State {
+impl<BD: BackendData> CompositorHandler for State<BD> {
     fn compositor_state(&mut self) -> &mut smithay::wayland::compositor::CompositorState {
         &mut self.compositor
     }
@@ -37,7 +37,7 @@ impl CompositorHandler for State {
                 root = parent;
             }
             if let Some(window) = self
-                .layout
+                .layout()
                 .space
                 .elements()
                 .find(|w| w.toplevel().map(|x| *x.wl_surface() == root).unwrap_or(false))
@@ -54,7 +54,7 @@ impl CompositorHandler for State {
         _surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
     ) {
         let window = self
-            .layout
+            .layout()
             .space
             .elements()
             .find(|x| x.wl_surface().is_some_and(|surface| *surface.as_ref() == *_surface))

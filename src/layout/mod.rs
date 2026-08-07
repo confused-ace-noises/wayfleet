@@ -291,7 +291,6 @@ impl AsRenderElements<GlesRenderer> for WayfleetWindow {
                         .into_iter()
                         .map(|x: WaylandSurfaceRenderElement<GlesRenderer>| {
                             let element = MaybeCropped::NoCrop(x);
-                            println!("rendered");
                             C::from(InnerOrBorder::Inner(element))
                         });
 

@@ -17,7 +17,13 @@ impl Map {
     ) -> Option<bool> {
         let focused = self.focus?;
         
-        self.swap_or_move(&focused, direction, space)
+        let out = self.swap_or_move(&focused, direction, space);
+
+        if let Some(true) = out {
+            self.new_focus_at(focused.step_towards(direction), space);
+        }
+
+        out
     }
 
     pub fn swap_or_move(
@@ -101,8 +107,6 @@ impl Map {
         if is_g2_empty {
             self.recalculate_available();
         }
-
-        self.shift_focus(direction, space);
 
         Some(true)
     }

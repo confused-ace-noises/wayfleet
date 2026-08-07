@@ -18,14 +18,14 @@ use crate::{handlers::{ClientState, xwayland::create_xwayland}, layout::{Wayflee
 
 pub static CONFIG: OnceLock<Arc<Config>> = OnceLock::new();
 
-pub struct State {
+pub struct State<BD: BackendData> {
     pub start_time: Instant,
     pub loop_handle: LoopHandle<'static, Self>,
     pub loop_signal: LoopSignal,
     pub display: DisplayHandle,
-    pub layout: LayoutController,
     pub socket: OsString,
-    pub output_state: OutputState,
+    
+    pub backend_data: BD,
     pub config: Arc<Config>,
 
     // this is literally only made to track those OR xwayland windows and nothing else
@@ -47,7 +47,7 @@ pub struct State {
     pub xwayland_shell: XWaylandShellState,
 }
 
-impl State {
+impl State<Winit> {
     pub fn new(
         event_loop: &mut EventLoop<'static, Self>,
         display_real: Display<Self>,
@@ -64,7 +64,7 @@ impl State {
         let socket_name = socket.socket_name().to_os_string();
 
         loop_handle
-            .insert_source(socket, move |stream, _, state: &mut State| {
+            .insert_source(socket, move |stream, _, state: &mut State<Winit>| {
                 state
                     .display
                     .insert_client(stream, Arc::new(ClientState::default()))
@@ -94,13 +94,17 @@ impl State {
 
         CONFIG.set(config.clone()).unwrap();
 
-        // let output_manager = display.create_global::<ZxdgOutputManagerV1, ()>(1, ());
+        let backend_data = Winit {
+            layout_controller: LayoutController::new(&config, &output_state),
+            output_state,
+        };
 
         let ret = Self {
             loop_signal,
             start_time,
             loop_handle,
-            layout: LayoutController::new(&config, &output_state),
+            backend_data,
+            // layout,
             xwayland_override_redirects_space: Space::default(),
             compositor: CompositorState::new::<Self>(&display),
             shm: ShmState::new::<Self>(&display, vec![]),
@@ -110,7 +114,6 @@ impl State {
             decorations: XdgDecorationState::new::<Self>(&display),
             layer_state: WlrLayerShellState::new::<Self>(&display),
             socket: socket_name,
-            output_state,
             seat,
             popups: PopupManager::default(),
             config,
@@ -125,6 +128,16 @@ impl State {
 
         ret
     }
+}
+
+impl<BD: BackendData> State<BD> {
+    pub fn layout(&self) -> &LayoutController {
+        self.backend_data.layout_controller()
+    }
+
+    pub fn layout_mut(&mut self) -> &mut LayoutController {
+        self.backend_data.layout_controller_mut()
+    }
 
     pub fn set_kb_focus(&mut self, window: &Window) {
         window.set_activated(true);
@@ -132,7 +145,7 @@ impl State {
         if let Some(xdg) = window.toplevel() {
             xdg.send_pending_configure();
         }
-
+    
         if let Some(x) = self.seat.get_keyboard() {
             x.set_focus(
                 self,
@@ -146,12 +159,42 @@ impl State {
 #[derive(Debug, Clone)]
 pub struct OutputState {
     pub size: Size<i32, Physical>,
-    pub scale_factor: i32,
-    pub changed: bool,
+    pub scale_factor: f64,
 }
 
 impl OutputState {
     pub fn logical_size(&self) -> Size<i32, Logical> {
-        self.size.to_logical(Scale::from(self.scale_factor))
+        self.size.to_f64().to_logical(Scale::from(self.scale_factor)).to_i32_round()
+    }
+}
+
+pub trait BackendData: 'static {
+    fn layout_controller(&self) -> &LayoutController;
+    fn layout_controller_mut(&mut self) -> &mut LayoutController;
+
+    fn output_state(&self) -> &OutputState;
+    fn output_state_mut(&mut self) -> &mut OutputState;
+}
+
+pub struct Winit {
+    layout_controller: LayoutController,
+    output_state: OutputState,
+}
+
+impl BackendData for Winit {
+    fn layout_controller(&self) -> &LayoutController {
+        &self.layout_controller
+    }
+
+    fn layout_controller_mut(&mut self) -> &mut LayoutController {
+        &mut self.layout_controller
+    }
+    
+    fn output_state(&self) -> &OutputState {
+        &self.output_state
+    }
+    
+    fn output_state_mut(&mut self) -> &mut OutputState {
+        &mut self.output_state
     }
 }

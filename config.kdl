@@ -14,8 +14,8 @@ layout {
         border {
             active-color "#7fc8ff"
             inactive-color "#505050"
-            width 0
-            corner-radius 3
+            width 5
+            corner-radius 10
         }
     }
 
@@ -69,18 +69,20 @@ keybinds {
 
     Mod+K      { spawn "kitty"; }
     Mod+F      { spawn "firefox"; }
+    Mod+D { spawn "fuxzzel"; }
 
     Mod+Q { close-window; }
+
 
     Mod+Up    { move-focus-up; }
     Mod+Down  { move-focus-down; }
     Mod+Right { move-focus-right; }
     Mod+Left  { move-focus-left; }
 
-    Mod+Ctrl+Up    { move-or-swap-up; }
-    Mod+Ctrl+Down  { move-or-swap-down; }
-    Mod+Ctrl+Right { move-or-swap-right; }
-    Mod+Ctrl+Left  { move-or-swap-left; }
+    Mod+Alt+Up    { move-or-swap-up; }
+    Mod+Alt+Down  { move-or-swap-down; }
+    Mod+Alt+Right { move-or-swap-right; }
+    Mod+Alt+Left  { move-or-swap-left; }
 
     Mod+Shift+Up    { map-resize-add-up; }
     Mod+Shift+Down  { map-resize-add-down; }

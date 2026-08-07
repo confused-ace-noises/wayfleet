@@ -114,6 +114,7 @@ struct LayoutSpanned {
 
     #[knus(child)]
     pub map: MapSpanned,
+
     #[knus(child)]
     pub privileged: Privileged,
 }

@@ -46,7 +46,7 @@ impl Map {
         
     }
 
-    pub fn new_insert(&mut self, window: Window, space: &mut Space<WayfleetWindow>, crop_rect: Arc<RwLock<Rectangle<i32, Logical>>>) -> Option<WayfleetWindow> {
+    pub fn new_insert(&mut self, window: Window, space: &mut Space<WayfleetWindow>, crop_rect: Arc<RwLock<Rectangle<i32, Logical>>>) -> Option<WayfleetWindow> {        
         let first_avail_coord = self.first_available?;
         
         let mut new_size = Size::new(self.cell_width, self.cell_height);

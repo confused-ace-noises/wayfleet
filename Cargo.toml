@@ -1,7 +1,9 @@
 [workspace]
 resolver = "3"
 members = [
-    "wayfleet-config"
+    "wayfleet-config",
+    "wf-game-client",
+    "wf-game-server"
 ]
 
 [workspace.dependencies]
@@ -18,6 +20,14 @@ features = [
     "wayland_frontend",
     "desktop",
     "xwayland",
+
+    "backend_udev",
+    "backend_drm",
+    "backend_gbm",
+    "backend_egl",
+    "backend_libinput",
+    "backend_session_libseat",
+    "renderer_gl",
 ]
 
 [workspace.package]
@@ -37,3 +47,10 @@ wayfleet-config.path = "wayfleet-config"
 miette = { version = "7.6.0", features = ["fancy"] }
 smithay.workspace = true
 nix = { version = "0.31.3", features = ["signal"] }
+smithay-drm-extras = { git = "https://github.com/Smithay/smithay/" }
+drm = "0.15.0"
+
+[profile.release]
+opt-level = "z"
+codegen-units = 1
+lto = true

@@ -1,19 +1,19 @@
 use smithay::{input::{SeatHandler, dnd::{DnDGrab, DndGrabHandler, GrabType}, pointer::Focus}, reexports::wayland_server::{backend::ClientData, protocol::wl_surface::WlSurface}, wayland::{buffer::BufferHandler, compositor::CompositorClientState, output::OutputHandler, selection::{SelectionHandler, data_device::{DataDeviceHandler, DataDeviceState, WaylandDndGrabHandler}}, shm::{ShmHandler, ShmState}}};
 
-use crate::state::State;
+use crate::state::{BackendData, State};
 
 pub mod compositor;
 pub mod xdg_shell;
 pub mod layer_shell;
 pub mod xwayland;
 
-impl ShmHandler for State {
+impl<BD: BackendData> ShmHandler for State<BD> {
     fn shm_state(&self) -> &ShmState {
         &self.shm
     }
 }
 
-impl SeatHandler for State {
+impl<BD: BackendData> SeatHandler for State<BD> {
     type KeyboardFocus = WlSurface;
 
     type PointerFocus = WlSurface;
@@ -25,7 +25,7 @@ impl SeatHandler for State {
     }
 }
 
-impl BufferHandler for State {
+impl<BD: BackendData> BufferHandler for State<BD> {
     fn buffer_destroyed(
         &mut self,
         _buffer: &smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer,
@@ -41,20 +41,20 @@ pub struct ClientState {
 
 impl ClientData for ClientState {}
 
-impl OutputHandler for State {}
+impl<BD: BackendData> OutputHandler for State<BD> {}
 
-impl SelectionHandler for State {
+impl<BD: BackendData> SelectionHandler for State<BD> {
     type SelectionUserData = ();
 }
 
-impl DataDeviceHandler for State {
+impl<BD: BackendData> DataDeviceHandler for State<BD> {
     fn data_device_state(&mut self) -> &mut DataDeviceState {
         &mut self.data_device
     }
 }
 
-impl DndGrabHandler for State {}
-impl WaylandDndGrabHandler for State {
+impl<BD: BackendData> DndGrabHandler for State<BD> {}
+impl<BD: BackendData> WaylandDndGrabHandler for State<BD> {
     fn dnd_requested<S: smithay::input::dnd::Source>(
         &mut self,
         source: S,
@@ -80,4 +80,4 @@ impl WaylandDndGrabHandler for State {
     }
 }
 
-smithay::delegate_dispatch2!(State);
+smithay::delegate_dispatch2!(@<BD: BackendData> State<BD>);

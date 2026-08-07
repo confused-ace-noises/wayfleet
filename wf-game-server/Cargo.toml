@@ -1,0 +1,11 @@
+[package]
+name = "wf-game-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more.workspace = true
+anyhow = "1.0.104"
+rocket = "0.5.1"
+rusqlite = "0.40.1"
+serde = { version = "1.0.229", features = ["derive"] }

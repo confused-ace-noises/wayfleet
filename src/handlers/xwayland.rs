@@ -2,9 +2,9 @@ use std::process::Stdio;
 
 use smithay::{desktop::Window, reexports::{calloop::LoopHandle, wayland_server::DisplayHandle}, wayland::xwayland_shell::XWaylandShellHandler, xwayland::{X11Wm, XWayland, XWaylandEvent, XwmHandler}};
 
-use crate::{layout::{WayfleetWindow, controller::LayoutController}, state::State};
+use crate::{layout::{WayfleetWindow, controller::LayoutController}, state::{BackendData, State}};
 
-pub fn create_xwayland(handle: LoopHandle<'static, State>, display_handle: DisplayHandle) {
+pub fn create_xwayland<BD: BackendData>(handle: LoopHandle<'static, State<BD>>, display_handle: DisplayHandle) {
     let (xwayland, client) = XWayland::spawn::<
         _,
         _,
@@ -43,7 +43,7 @@ pub fn create_xwayland(handle: LoopHandle<'static, State>, display_handle: Displ
     }).expect("failed to insert xwayland source");
 }
 
-impl XwmHandler for State {
+impl<BD: BackendData> XwmHandler for State<BD> {
     fn xwm_state(&mut self, _: smithay::xwayland::xwm::XwmId) -> &mut X11Wm {
         self.xwalyand_manager.as_mut().expect("what should i even do here")
     }
@@ -60,16 +60,16 @@ impl XwmHandler for State {
         window.set_mapped(true).unwrap();
         let window = Window::new_x11_window(window);
 
-        let old_window  = match &self.layout.focus {
+        let old_window  = match &self.layout().focus {
             crate::layout::controller::Focus::None => None,
             crate::layout::controller::Focus::Map(window) => Some(window.clone()),
             crate::layout::controller::Focus::Privileged(window) => Some(window.clone())  ,
         };
 
-        self.layout.insert_by_focus_w_forcing(window.clone());
+        self.layout_mut().insert_by_focus_w_forcing(window.clone());
         
         
-        let bbox = self.layout.space.element_bbox(&WayfleetWindow::dummy(window.clone())).unwrap();
+        let bbox = self.layout().space.element_bbox(&WayfleetWindow::dummy(window.clone())).unwrap();
         let Some(xsurface) = window.x11_surface() else {
             unreachable!()
         };
@@ -100,7 +100,7 @@ impl XwmHandler for State {
                 self.xwayland_override_redirects_space.unmap_elem(&yes_window);
             }
         } else {
-            let wayfleet_window = self.layout.space.elements().find(|e| matches!(e.x11_surface(), Some(w) if w == &window)).cloned();
+            let wayfleet_window = self.layout().space.elements().find(|e| matches!(e.x11_surface(), Some(w) if w == &window)).cloned();
             if let Some(yes_window) = wayfleet_window {
                 LayoutController::remove(self, &yes_window);
             }
@@ -157,7 +157,7 @@ impl XwmHandler for State {
     }
 }
 
-impl XWaylandShellHandler for State {
+impl<BD: BackendData> XWaylandShellHandler for State<BD> {
     fn xwayland_shell_state(&mut self) -> &mut smithay::wayland::xwayland_shell::XWaylandShellState {
         &mut self.xwayland_shell
     }

@@ -7,10 +7,10 @@ pub mod swap;
 pub mod resize;
 pub mod focus;
 
-use smithay::utils::{Logical, Point, Rectangle};
+use smithay::utils::{Logical, Point, Rectangle, Size};
 use tile::Tile;
 use coordinate::Coordinate;
-use wayfleet_config::{amount::Amount, size::Spaces};
+use wayfleet_config::{amount::Amount, padding::Padding, size::Spaces};
 
 use crate::{animations::AnimationHandle, state::OutputState};
 
@@ -29,7 +29,49 @@ pub struct Map {
     pub viewport: Rectangle<i32, Logical>,
 }
 
+pub enum MapHeight {
+    New(i32),
+    FromOld((OutputState, Rectangle<i32, Logical>)),
+}
+
 impl Map {
+    pub fn output_state_to_rect(output: &OutputState, padding: &Padding, default_height: MapHeight) -> Rectangle<i32, Logical> {
+        let output = output.logical_size();
+
+        let height = match default_height {
+            // default heigth: 40%
+            // default width: 100%
+            MapHeight::New(priv_h) => output.h - (priv_h + padding.top + padding.down),
+            MapHeight::FromOld((ref old_output, rect)) => {
+                let old_logical = old_output.logical_size().h;
+                let new_height = output.h;
+
+                let delta = new_height - old_logical;
+
+                rect.size.h + delta
+            },
+        };
+
+        let point: Point<i32, Logical> = match default_height {
+            MapHeight::New(priv_h) => Point::new(padding.left, padding.top + priv_h),
+            MapHeight::FromOld((_, rectangle)) => rectangle.loc,
+        };
+
+        let width = match default_height {
+            MapHeight::New(_) => output.w - padding.left - padding.right,
+            MapHeight::FromOld((old_state, rect)) => {
+                let old_logical = old_state.logical_size().w;
+                let new_width = output.w;
+
+                let delta = new_width - old_logical;
+
+                rect.size.w + delta
+            },
+        };
+        
+        Rectangle { loc: point, size: Size::new(width, height) }
+    }
+
     pub fn new(
         config: &wayfleet_config::Map,
         animation: AnimationHandle,
@@ -38,7 +80,7 @@ impl Map {
     ) -> Self {
         let wayfleet_config::Map { size, cells, spaces, padding } = config;
 
-        let mut output_size = output_size.to_logical(*scale_factor);
+        let mut output_size = output_size.to_f64().to_logical(*scale_factor).to_i32_round();
 
         output_size.h -= privileged_offset + padding.top + padding.down;
         output_size.w -= padding.left + padding.right;

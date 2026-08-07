@@ -29,6 +29,8 @@ pub enum TileType {
 }
 
 impl Tile {
+    
+
     pub fn new_leader(window: WayfleetWindow, coord: Coordinate) -> Self {
         Self {
             window,

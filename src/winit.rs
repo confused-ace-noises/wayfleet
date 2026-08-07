@@ -8,26 +8,22 @@ use smithay::{
             gles::{GlesPixelProgram, GlesRenderer, UniformName, UniformType},
         },
         winit::{self, WinitEvent},
-    },
-    desktop::layer_map_for_output,
-    output::{Mode, Output, PhysicalProperties, Subpixel},
-    reexports::{
+    }, desktop::layer_map_for_output, output::{Mode, Output, PhysicalProperties, Scale, Subpixel}, reexports::{
         calloop::EventLoop,
         wayland_server::Display,
-    },
-    utils::Transform,
+    }, utils::Transform,
 };
 use wayfleet_config::Config;
 
-use crate::state::{OutputState, State};
+use crate::state::{BackendData, OutputState, State, Winit};
 
 pub static BORDER_SHADER: OnceLock<GlesPixelProgram> = OnceLock::new();
 
 pub fn init_winit(
-    event_loop: &mut EventLoop<'static, State>,
-    display: Display<State>,
+    event_loop: &mut EventLoop<'static, State<Winit>>,
+    display: Display<State<Winit>>,
     config: Config,
-) -> Result<State, Box<dyn std::error::Error>> {
+) -> Result<State<Winit>, Box<dyn std::error::Error>> {
     let (mut backend, winit) = winit::init::<GlesRenderer>()?;
 
     let shader = backend
@@ -46,7 +42,7 @@ pub fn init_winit(
     BORDER_SHADER.set(shader).unwrap();
 
     let size = backend.window_size();
-    let scale_factor = backend.scale_factor() as i32;
+    let scale_factor = backend.scale_factor();
 
     let mode = Mode {
         size,
@@ -67,23 +63,22 @@ pub fn init_winit(
     let output_state = OutputState {
         size,
         scale_factor,
-        changed: false,
     };
 
     // OutputManager
 
-    let mut state = State::new(event_loop, display, config, output_state);
+    let mut state = State::<Winit>::new(event_loop, display, config, output_state);
 
-    let _global = output.create_global::<State>(&state.display);
+    let _global = output.create_global::<State<Winit>>(&state.display);
     output.change_current_state(
         Some(mode),
         Some(Transform::Flipped180),
-        None,
+        Some(Scale::Fractional(scale_factor)),
         Some((0, 0).into()),
     );
     output.set_preferred(mode);
 
-    state.layout.space.map_output(&output, (0, 0));
+    state.backend_data.layout_controller_mut().space.map_output(&output, (0, 0));
     state.xwayland_override_redirects_space.map_output(&output, (0, 0));
     // let x = ZxdgOutputManagerV1::from(value);
 
@@ -93,7 +88,7 @@ pub fn init_winit(
         .handle()
         .insert_source(winit, move |event, _, state| {
             match event {
-                WinitEvent::Resized { size, .. } => {
+                WinitEvent::Resized { size, scale_factor } => {
                     output.change_current_state(
                         Some(Mode {
                             size,
@@ -103,6 +98,13 @@ pub fn init_winit(
                         None,
                         None,
                     );
+
+                    let output_state = OutputState {
+                        size,
+                        scale_factor,
+                    };
+
+                    state.resize_output(output_state);
                 }
                 WinitEvent::Input(event) => state.run_input(event),
                 WinitEvent::Redraw => {
@@ -124,7 +126,7 @@ pub fn init_winit(
                             0,
                             [
                                 &state.xwayland_override_redirects_space,
-                                &state.layout.space, 
+                                &state.backend_data.layout_controller().space, 
                             ],
                             &[],
                             &mut damage_tracker,
@@ -137,7 +139,7 @@ pub fn init_winit(
                         .submit(render_result.damage.map(|x| x.as_slice()))
                         .unwrap();
 
-                    state.layout.space.elements().chain(state.xwayland_override_redirects_space.elements()).for_each(|window| {
+                    state.backend_data.layout_controller().space.elements().chain(state.xwayland_override_redirects_space.elements()).for_each(|window| {
                         window.send_frame(
                             &output,
                             state.start_time.elapsed(),
@@ -156,7 +158,7 @@ pub fn init_winit(
                         );
                     }
 
-                    state.layout.space.refresh();
+                    state.backend_data.layout_controller_mut().space.refresh();
                     state.popups.cleanup();
                     let _ = state.display.flush_clients();
 
